@@ -195,7 +195,8 @@ input[type=range]:hover::-webkit-slider-thumb{background:var(--blue);}
 .chain-table td{font-family:var(--mono);font-size:10px;padding:3px 4px;text-align:right;border-bottom:1px solid var(--border);color:var(--text-secondary);cursor:pointer;}
 .chain-table td:first-child{text-align:left;}
 .chain-table tr:hover td{background:rgba(37,99,235,0.04);}
-.chain-table tr.selected td{background:rgba(37,99,235,0.08);color:var(--blue);font-weight:600;}
+.chain-table tr.selected td{background:rgba(37,99,235,0.12);color:var(--blue);font-weight:600;border-left:2px solid var(--blue);}
+.chain-table tr.selected td:first-child{border-left:2px solid var(--blue);}
 .chain-scroll{max-height:180px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--border-hi) transparent;margin-top:4px;}
 .chain-scroll::-webkit-scrollbar{width:3px;}
 .chain-scroll::-webkit-scrollbar-thumb{background:var(--border-hi);}
@@ -229,6 +230,7 @@ input[type=range]:hover::-webkit-slider-thumb{background:var(--blue);}
       <button class="mode-btn active" id="btn-call" onclick="setSingleType('call')">CALL</button>
       <button class="mode-btn" id="btn-put" onclick="setSingleType('put')">PUT</button>
     </div>
+    <button class="mode-btn" id="resetBtn" onclick="resetCurrentMode()" style="border:1px solid var(--red);border-radius:3px;color:var(--red);margin-left:6px;">RESET</button>
   </div>
   <div class="topbar-right">
     <div class="price-block">
@@ -277,6 +279,9 @@ input[type=range]:hover::-webkit-slider-thumb{background:var(--blue);}
       <div class="live-info hidden" id="liveInfo"><span class="live-dot"></span>LIVE <span class="live-price-val" id="livePriceVal">--</span> <span id="liveTime"></span></div>
       <div class="mkt-quote hidden" id="mktQuote">
         <span class="mkt-quote-item">Last <span id="mq-last">--</span></span>
+        <span class="mkt-quote-item hidden" id="mq-chg-wrap">Chg <span id="mq-chg">--</span></span>
+        <span class="mkt-quote-item hidden" id="mq-vol-wrap">Vol <span id="mq-vol">--</span></span>
+        <span class="mkt-quote-item hidden" id="mq-div-wrap">Div <span id="mq-div">--</span></span>
       </div>
       <div id="chainWrap" class="hidden">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;">
@@ -296,7 +301,7 @@ input[type=range]:hover::-webkit-slider-thumb{background:var(--blue);}
     <div class="p-section">
       <div class="p-heading">UNDERLIER</div>
       <div class="slider-group">
-        <div class="slider-meta"><span class="slider-name">Spot price <em>(S)</em></span><span class="slider-value" id="lbl-S">$100</span></div>
+        <div class="slider-meta"><span class="slider-name">Spot price <em>(S)</em> <span id="spotTrackBadge" class="hidden" style="font-family:var(--mono);font-size:8px;font-weight:700;letter-spacing:0.06em;padding:1px 5px;border-radius:2px;cursor:pointer;vertical-align:middle;" onclick="toggleSpotTracking()"></span></span><span class="slider-value" id="lbl-S">$100</span></div>
         <input type="range" id="sl-S" min="1" max="500" step="1" value="100">
       </div>
       <div class="slider-group">
@@ -549,6 +554,8 @@ function bs(S,K,T,r,q,sigma,type){
 let appMode='single'; // 'single' | 'multi'
 let singleType='call';
 let chartMode='payoff';
+let savedSingleState=null;
+let savedMultiState=null;
 let mainChart=null;
 const miniCharts={};
 const NO_ANIM={duration:0};
@@ -603,7 +610,56 @@ function syncStrikeRange(mn,mx,st){
 }
 
 /* ── Mode switching ──────────────────────── */
+function saveModeState(){
+  if(appMode==='single'){
+    savedSingleState={
+      type:singleType,
+      K:parseFloat(document.getElementById('sl-K').value),
+      IV:parseFloat(document.getElementById('sl-IV').value),
+      T:parseFloat(document.getElementById('sl-T').value),
+      r:parseFloat(document.getElementById('sl-r').value),
+      q:parseFloat(document.getElementById('sl-q').value),
+      loadedOption:loadedOption?{...loadedOption}:null
+    };
+  } else {
+    savedMultiState={
+      legs:legs.map(l=>({...l})),
+      legIdCounter,
+      r:parseFloat(document.getElementById('sl-rm').value),
+      q:parseFloat(document.getElementById('sl-qm').value),
+      activeStrat:document.querySelector('.strat-btn.active')?.getAttribute('onclick')||null
+    };
+  }
+}
+
+function restoreModeState(){
+  if(appMode==='single'&&savedSingleState){
+    const s=savedSingleState;
+    singleType=s.type;
+    document.getElementById('sl-K').value=s.K;
+    document.getElementById('sl-IV').value=s.IV;
+    document.getElementById('sl-T').value=s.T;
+    document.getElementById('sl-r').value=s.r;
+    document.getElementById('sl-q').value=s.q;
+    document.getElementById('btn-call').classList.toggle('active',singleType==='call');
+    document.getElementById('btn-put').classList.toggle('active',singleType==='put');
+    loadedOption=s.loadedOption;
+  } else if(appMode==='multi'&&savedMultiState){
+    const s=savedMultiState;
+    legs=s.legs.map(l=>({...l}));
+    legIdCounter=s.legIdCounter;
+    document.getElementById('sl-rm').value=s.r;
+    document.getElementById('sl-qm').value=s.q;
+    renderLegs();
+    document.querySelectorAll('.strat-btn').forEach(b=>b.classList.toggle('active',s.activeStrat&&b.getAttribute('onclick')===s.activeStrat));
+  } else if(appMode==='multi'&&!savedMultiState){
+    legs=[];legIdCounter=0;renderLegs();
+    document.querySelectorAll('.strat-btn').forEach(b=>b.classList.remove('active'));
+  }
+}
+
 function setMode(m){
+  saveModeState();
   appMode=m;
   document.getElementById('modeBtn-single').classList.toggle('active',m==='single');
   document.getElementById('modeBtn-multi').classList.toggle('active',m==='multi');
@@ -617,6 +673,34 @@ function setMode(m){
   document.getElementById('tp-maxloss').classList.toggle('hidden',m==='single');
   document.getElementById('aux-d1-wrap').classList.toggle('hidden',m==='multi');
   document.getElementById('aux-d2-wrap').classList.toggle('hidden',m==='multi');
+  restoreModeState();
+  rebuildTabs();
+  update();
+}
+
+function resetCurrentMode(){
+  if(appMode==='single'){
+    const S=liveStockPrice||100;
+    singleType='call';
+    document.getElementById('btn-call').classList.add('active');
+    document.getElementById('btn-put').classList.remove('active');
+    document.getElementById('sl-K').value=Math.round(S);
+    document.getElementById('sl-IV').value=25;
+    document.getElementById('sl-T').value=30;
+    document.getElementById('sl-r').value=5;
+    document.getElementById('sl-q').value=0;
+    document.getElementById('sl-S').value=Math.round(S);
+    loadedOption=null;
+    savedSingleState=null;
+    renderChain();
+  } else {
+    legs=[];legIdCounter=0;
+    renderLegs();
+    document.querySelectorAll('.strat-btn').forEach(b=>b.classList.remove('active'));
+    document.getElementById('sl-rm').value=5;
+    document.getElementById('sl-qm').value=0;
+    savedMultiState=null;
+  }
   rebuildTabs();
   update();
 }
@@ -1289,6 +1373,8 @@ let chainShowPuts=false;
 let currentTicker='';
 let liveStockPrice=null;
 let autoRefreshTimer=null;
+let loadedOption=null; // {strike, iv, type, dte, spot} — snapped values from chain click
+let spotFollowsLive=false;
 
 function setStatus(msg,cls){
   const el=document.getElementById('mktStatus');
@@ -1325,7 +1411,9 @@ async function fetchQuote(){
     document.getElementById('mq-last').textContent='$'+price.toFixed(2);
     document.getElementById('mktQuote').classList.remove('hidden');
 
-    // Set spot price
+    // Set spot price + enable live tracking
+    spotFollowsLive=true;
+    updateSpotTrackBadge();
     const sl=document.getElementById('sl-S');
     const mn=Math.max(Math.round(price*0.5),1);
     const mx=Math.round(price*2);
@@ -1342,6 +1430,9 @@ async function fetchQuote(){
     if(slK){slK.value=Math.round(price);}
 
     update();
+
+    // Fetch supplemental data (change, volume, dividend) from Yahoo
+    fetchSupplemental(ticker);
 
     // Fetch expirations
     const expData=await apiFetch('/api/tradier/expirations?symbol='+encodeURIComponent(ticker));
@@ -1402,32 +1493,72 @@ function renderChain(){
     const oi=o.open_interest||0;
     const isATM=Math.abs(strike-S)<(S*0.01);
 
-    return`<tr onclick="loadFromChain(${strike},${iv?iv:0.25},'${type}')" ${isATM?'style="background:rgba(217,119,6,0.06)"':''}>
-      <td style="font-weight:${isATM?'700':'400'}">${strike}</td>
+    const isSelected=loadedOption&&loadedOption.strike===strike&&loadedOption.type===type;
+    const rowCls=isSelected?'selected':'';
+    const bgStyle=isSelected?'':isATM?'style="background:rgba(217,119,6,0.06)"':'';
+
+    return`<tr class="${rowCls}" onclick="loadFromChain(${strike},${iv?iv:0.25},'${type}')" ${bgStyle}>
+      <td style="font-weight:${isATM||isSelected?'700':'400'}">${strike}</td>
       <td>${bid.toFixed(2)}</td>
       <td>${ask.toFixed(2)}</td>
       <td>${iv?(iv*100).toFixed(1)+'%':'--'}</td>
       <td>${vol.toLocaleString()}</td>
       <td>${oi.toLocaleString()}</td>
-      <td style="color:var(--blue);font-size:9px;">USE</td>
+      <td style="color:var(--blue);font-size:9px;">${isSelected?'✓':'USE'}</td>
     </tr>`;
   }).join('');
 }
 
 function loadFromChain(strike,iv,type){
+  const dte=parseInt(document.getElementById('expirySelect').selectedOptions[0]?.textContent.match(/\((\d+)d\)/)?.[1])||30;
   if(appMode==='single'){
     document.getElementById('sl-K').value=strike;
     if(iv>0){document.getElementById('sl-IV').value=Math.round(iv*100);}
+    document.getElementById('sl-T').value=dte;
     setSingleType(type);
+    loadedOption={strike,iv:iv>0?Math.round(iv*100):25,type,dte,spot:getS()};
+    renderChain();
     update();
-    setStatus('Loaded K='+strike+' '+type.toUpperCase(),'success');
+    setStatus('Loaded K='+strike+' '+type.toUpperCase()+' — double-click sliders to reset','success');
   } else {
-    // In multi-leg mode, add as a new leg
-    const dte=parseInt(document.getElementById('expirySelect').selectedOptions[0]?.textContent.match(/\((\d+)d\)/)?.[1])||30;
     addLeg({type,dir:'long',K:strike,IV:iv>0?Math.round(iv*100):25,T:dte,qty:1});
     update();
     setStatus('Added '+type.toUpperCase()+' K='+strike+' leg','success');
   }
+}
+
+/* ── Yahoo supplemental data ────────────── */
+async function fetchSupplemental(ticker){
+  try{
+    const data=await fetch('/api/yahoo/supplemental?symbol='+encodeURIComponent(ticker)).then(r=>r.ok?r.json():null);
+    if(!data||data.error)return;
+    // Change
+    if(data.change!=null){
+      const chg=data.change,pct=data.change_percent||0;
+      document.getElementById('mq-chg').textContent=(chg>=0?'+':'')+chg.toFixed(2)+' ('+(pct>=0?'+':'')+pct.toFixed(1)+'%)';
+      document.getElementById('mq-chg').style.color=chg>=0?'var(--green)':'var(--red)';
+      document.getElementById('mq-chg-wrap').classList.remove('hidden');
+    }
+    // Volume
+    if(data.volume){
+      document.getElementById('mq-vol').textContent=data.volume.toLocaleString();
+      document.getElementById('mq-vol-wrap').classList.remove('hidden');
+    }
+    // Dividend yield
+    if(data.dividend_yield>0){
+      const divPct=(data.dividend_yield*100).toFixed(2);
+      document.getElementById('mq-div').textContent=divPct+'%';
+      document.getElementById('mq-div-wrap').classList.remove('hidden');
+      // Auto-set dividend yield slider
+      const qSlider=appMode==='single'?document.getElementById('sl-q'):document.getElementById('sl-qm');
+      if(qSlider){
+        qSlider.value=(data.dividend_yield*100).toFixed(1);
+        const lbl=appMode==='single'?document.getElementById('lbl-q'):document.getElementById('lbl-qm');
+        if(lbl)lbl.textContent=(data.dividend_yield*100).toFixed(1)+'%';
+        update();
+      }
+    }
+  }catch(e){/* silent — supplemental data is optional */}
 }
 
 /* ── Live price helpers ──────────────────── */
@@ -1441,7 +1572,7 @@ function updateLiveIndicator(price){
 
 function startAutoRefresh(){
   if(autoRefreshTimer)clearInterval(autoRefreshTimer);
-  autoRefreshTimer=setInterval(autoRefreshPrice,30000);
+  autoRefreshTimer=setInterval(autoRefreshPrice,5000);
 }
 
 async function autoRefreshPrice(){
@@ -1454,6 +1585,10 @@ async function autoRefreshPrice(){
     liveStockPrice=price;
     updateLiveIndicator(price);
     document.getElementById('mq-last').textContent='$'+price.toFixed(2);
+    if(spotFollowsLive){
+      const sl=document.getElementById('sl-S');
+      sl.value=Math.round(price);
+    }
     update();
   }catch(e){/* silent */}
 }
@@ -1467,6 +1602,54 @@ miniCharts.rho=makeMiniChart('mc-rho','#059669');
 miniCharts.vanna=makeMiniChart('mc-vanna','#0891B2');
 
 ['sl-S','sl-K','sl-IV','sl-T','sl-r','sl-q','sl-rm','sl-qm'].forEach(id=>{const el=document.getElementById(id);if(el)el.addEventListener('input',update);});
+
+// Spot slider: disable live tracking on manual input
+document.getElementById('sl-S').addEventListener('input',function(){
+  if(spotFollowsLive){spotFollowsLive=false;updateSpotTrackBadge();}
+});
+
+// Double-click sliders to reset to loaded chain option (or re-enable live tracking for spot)
+function resetSliderToLoaded(sliderId){
+  if(sliderId==='sl-S'&&liveStockPrice){
+    spotFollowsLive=true;
+    document.getElementById('sl-S').value=Math.round(liveStockPrice);
+    updateSpotTrackBadge();
+    update();
+    return;
+  }
+  if(!loadedOption)return;
+  const map={'sl-K':loadedOption.strike,'sl-IV':loadedOption.iv,'sl-T':loadedOption.dte};
+  if(map[sliderId]!=null){
+    document.getElementById(sliderId).value=map[sliderId];
+    update();
+  }
+}
+['sl-S','sl-K','sl-IV','sl-T'].forEach(id=>{
+  const el=document.getElementById(id);
+  if(el)el.addEventListener('dblclick',()=>resetSliderToLoaded(id));
+});
+
+function toggleSpotTracking(){
+  spotFollowsLive=!spotFollowsLive;
+  if(spotFollowsLive&&liveStockPrice){
+    document.getElementById('sl-S').value=Math.round(liveStockPrice);
+    update();
+  }
+  updateSpotTrackBadge();
+}
+
+function updateSpotTrackBadge(){
+  const badge=document.getElementById('spotTrackBadge');
+  if(!liveStockPrice){badge.classList.add('hidden');return;}
+  badge.classList.remove('hidden');
+  if(spotFollowsLive){
+    badge.textContent='LIVE';
+    badge.style.background='rgba(5,150,105,0.12)';badge.style.color='var(--green)';
+  } else {
+    badge.textContent='MANUAL';
+    badge.style.background='rgba(217,119,6,0.1)';badge.style.color='var(--amber)';
+  }
+}
 
 rebuildTabs();
 update();
