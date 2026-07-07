@@ -269,7 +269,7 @@ input[type=range]:hover::-webkit-slider-thumb{background:var(--blue);}
     <div class="mkt-section">
       <div class="p-heading">MARKET DATA</div>
       <div class="mkt-row">
-        <input class="ticker-input" id="tickerInput" type="text" placeholder="AAPL" onkeydown="if(event.key==='Enter')fetchQuote()">
+        <input class="ticker-input" id="tickerInput" type="text" placeholder="AAPL or AAPL 26jul20 315c" onkeydown="if(event.key==='Enter')fetchQuote()" style="width:200px;">
         <button class="fetch-btn" id="fetchBtn" onclick="fetchQuote()">FETCH</button>
         <select class="mkt-select" id="expirySelect" style="display:none;" onchange="fetchChain()">
           <option value="">Expiry...</option>
@@ -1392,8 +1392,171 @@ async function apiFetch(path){
   return res.json();
 }
 
+/* ── Formula parser ─────────────────────── */
+const MONTH_MAP={jan:'01',feb:'02',mar:'03',apr:'04',may:'05',jun:'06',jul:'07',aug:'08',sep:'09',oct:'10',nov:'11',dec:'12'};
+const MONTH_NAMES={jan:'January',feb:'February',mar:'March',apr:'April',may:'May',jun:'June',jul:'July',aug:'August',sep:'September',oct:'October',nov:'November',dec:'December'};
+
+function parseOptionFormula(input){
+  const parts=input.trim().split(/\s+/);
+  if(parts.length<3)return null;
+  const ticker=parts[0].toUpperCase();
+  const expiryStr=parts[1].toLowerCase();
+  const expiryMatch=expiryStr.match(/^(\d{2})([a-z]{3})(\d{1,2})?$/);
+  if(!expiryMatch)return null;
+  const year=2000+parseInt(expiryMatch[1]);
+  const month=MONTH_MAP[expiryMatch[2]];
+  if(!month)return null;
+  const monthName=MONTH_NAMES[expiryMatch[2]];
+  const day=expiryMatch[3]?expiryMatch[3].padStart(2,'0'):null;
+  const strikeStr=parts[2].toLowerCase();
+  const strikeMatch=strikeStr.match(/^(\d+\.?\d*)(c|p)$/);
+  if(!strikeMatch)return null;
+  return{
+    ticker,year,month,monthName,day,
+    expiration:day?`${year}-${month}-${day}`:null,
+    expirationPrefix:`${year}-${month}`,
+    strike:parseFloat(strikeMatch[1]),
+    type:strikeMatch[2]==='c'?'call':'put'
+  };
+}
+
+async function handleFormula(f){
+  setStatus(`Loading ${f.ticker} ${f.strike}${f.type==='call'?'C':'P'} ${f.monthName}${f.day?' '+parseInt(f.day):''} ${f.year}...`,'');
+  document.getElementById('fetchBtn').disabled=true;
+
+  try{
+    // 1. Fetch quote for underlying price
+    const q=await apiFetch('/api/tradier/quote?symbol='+encodeURIComponent(f.ticker));
+    if(!q||q.error){document.getElementById('fetchBtn').disabled=false;return;}
+    const price=q.last||q.underlying_price||0;
+    currentTicker=f.ticker;
+    liveStockPrice=price;
+    updateLiveIndicator(price);
+    startAutoRefresh();
+    spotFollowsLive=true;
+    updateSpotTrackBadge();
+
+    document.getElementById('mq-last').textContent='$'+price.toFixed(2);
+    document.getElementById('mktQuote').classList.remove('hidden');
+
+    // Set spot range
+    const sl=document.getElementById('sl-S');
+    const mn=Math.max(Math.round(price*0.5),1),mx=Math.round(price*2);
+    const step=price>500?5:price>100?1:price>10?0.5:0.01;
+    sl.min=mn;sl.max=mx;sl.step=step;sl.value=price;
+    document.getElementById('sl-S-min').value=mn;
+    document.getElementById('sl-S-max').value=mx;
+    document.getElementById('sl-S-step').value=step;
+    document.getElementById('lbl-Srange').textContent=mn+' – '+mx;
+    syncStrikeRange(mn,mx,step);
+
+    // 2. Fetch expirations to find nearest valid expiry
+    const expData=await apiFetch('/api/tradier/expirations?symbol='+encodeURIComponent(f.ticker));
+    if(!expData||!expData.expirations||expData.expirations.length===0){
+      setStatus('No expirations found for '+f.ticker,'error');
+      document.getElementById('fetchBtn').disabled=false;return;
+    }
+    const allExps=expData.expirations;
+    populateExpiryDropdown(allExps);
+
+    // Find best matching expiration
+    let targetExp;
+    if(f.expiration){
+      // Full date: find nearest expiry to requested date
+      const target=new Date(f.expiration+'T12:00:00');
+      let bestDist=Infinity;
+      for(const e of allExps){
+        const dist=Math.abs(new Date(e+'T12:00:00')-target);
+        if(dist<bestDist){bestDist=dist;targetExp=e;}
+      }
+    } else {
+      // Month only: find first expiry in that month
+      const monthExps=allExps.filter(e=>e.startsWith(f.expirationPrefix));
+      if(monthExps.length>0)targetExp=monthExps[0];
+      else targetExp=allExps[0];
+    }
+
+    // 3. Fetch chain for best expiry
+    const chainResp=await apiFetch('/api/tradier/chain?symbol='+encodeURIComponent(f.ticker)+'&expiration='+targetExp);
+    if(!chainResp||!chainResp.contracts||chainResp.contracts.length===0){
+      setStatus('No contracts found for '+targetExp,'error');
+      document.getElementById('fetchBtn').disabled=false;return;
+    }
+    chainData=chainResp.contracts;
+    if(chainResp.underlying_price)liveStockPrice=chainResp.underlying_price;
+    document.getElementById('expirySelect').value=targetExp;
+
+    // 4. Find matching strike
+    let matches=chainData.filter(c=>c.option_type===f.type&&Math.abs(c.strike-f.strike)<0.5);
+    if(matches.length===0){
+      // Find nearest strike of the right type
+      const sameType=chainData.filter(c=>c.option_type===f.type);
+      if(sameType.length>0){
+        sameType.sort((a,b)=>Math.abs(a.strike-f.strike)-Math.abs(b.strike-f.strike));
+        matches=[sameType[0]];
+        setStatus('No '+f.strike+' strike — nearest is '+matches[0].strike,'');
+      }
+    }
+
+    if(matches.length===0){
+      renderChain();
+      document.getElementById('chainWrap').classList.remove('hidden');
+      setStatus('No '+f.type+' contracts found — browse chain','error');
+      document.getElementById('fetchBtn').disabled=false;return;
+    }
+
+    const match=matches[0];
+    const exp=targetExp;
+    const dte=Math.max(Math.round((new Date(exp+'T16:00:00')-new Date())/(1000*60*60*24)),1);
+
+    // Populate expiry dropdown
+    const exps=[...new Set(chainData.map(c=>c.expiration_date))].sort();
+    populateExpiryDropdown(exps);
+    document.getElementById('expirySelect').value=exp;
+
+    // Show chain
+    renderChain();
+    document.getElementById('chainWrap').classList.remove('hidden');
+
+    // Load the option
+    if(appMode==='single'){
+      document.getElementById('sl-K').value=match.strike;
+      if(match.implied_volatility>0)document.getElementById('sl-IV').value=Math.round(match.implied_volatility*100);
+      document.getElementById('sl-T').value=dte;
+      const slK=document.getElementById('sl-K');
+      if(slK){slK.value=match.strike;}
+      setSingleType(f.type);
+      loadedOption={strike:match.strike,iv:match.implied_volatility>0?Math.round(match.implied_volatility*100):25,type:f.type,dte,spot:Math.round(price)};
+      renderChain();
+    }
+
+    update();
+    fetchSupplemental(f.ticker);
+
+    const typeLabel=f.type==='call'?'CALL':'PUT';
+    if(matches.length===1){
+      setStatus(`${f.ticker} ${exp} ${match.strike} ${typeLabel} loaded — IV ${match.implied_volatility>0?(match.implied_volatility*100).toFixed(1)+'%':'N/A'}`,'success');
+    } else {
+      setStatus(`${matches.length} ${typeLabel}s at ${f.strike} found — showing nearest`,'success');
+    }
+  }catch(e){setStatus('Error: '+e.message,'error');}
+  document.getElementById('fetchBtn').disabled=false;
+}
+
+function populateExpiryDropdown(dates){
+  const sel=document.getElementById('expirySelect');
+  sel.innerHTML='<option value="">Select expiry...</option>'+dates.map(d=>{
+    const dte=Math.round((new Date(d+'T16:00:00')-new Date())/(1000*60*60*24));
+    return`<option value="${d}">${d} (${dte}d)</option>`;
+  }).join('');
+  sel.style.display='';
+}
+
 async function fetchQuote(){
-  const ticker=document.getElementById('tickerInput').value.trim().toUpperCase();
+  const raw=document.getElementById('tickerInput').value.trim();
+  const formula=parseOptionFormula(raw);
+  if(formula)return handleFormula(formula);
+  const ticker=raw.toUpperCase();
   if(!ticker){setStatus('Enter a ticker','error');return;}
   currentTicker=ticker;
   setStatus('Fetching '+ticker+'...','');
