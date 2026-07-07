@@ -185,6 +185,12 @@ input[type=range]:hover::-webkit-slider-thumb{background:var(--blue);}
 .mkt-select{font-family:var(--mono);font-size:11px;padding:4px 6px;border:1px solid var(--border);border-radius:2px;background:white;color:var(--text-primary);outline:none;flex:1;cursor:pointer;}
 .mkt-select:focus{border-color:var(--blue);}
 .mkt-status{font-family:var(--mono);font-size:10px;color:var(--text-dim);padding:4px 0 0;}
+.info-icon{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;border:1px solid var(--border-hi);color:var(--text-dim);font-size:9px;font-weight:700;cursor:pointer;position:relative;font-family:var(--mono);flex-shrink:0;line-height:1;}
+.info-icon:hover{border-color:var(--blue);color:var(--blue);}
+.info-tooltip{display:none;position:absolute;top:20px;right:0;z-index:100;background:var(--bg1);border:1px solid var(--border);border-radius:6px;padding:10px 12px;width:240px;box-shadow:0 4px 12px rgba(0,0,0,0.12);font-family:var(--mono);font-size:10px;line-height:1.5;color:var(--text-secondary);font-weight:400;}
+.info-icon:hover .info-tooltip{display:block;}
+.info-tooltip b{color:var(--text-primary);font-weight:600;}
+.info-tooltip code{background:var(--bg2);padding:1px 4px;border-radius:2px;font-size:9.5px;color:var(--blue);}
 .mkt-status.error{color:var(--red);}
 .mkt-status.success{color:var(--green);}
 .mkt-quote{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px;}
@@ -273,8 +279,9 @@ input[type=range]:hover::-webkit-slider-thumb{background:var(--blue);}
     <div class="mkt-section">
       <div class="p-heading">MARKET DATA</div>
       <div class="mkt-row">
-        <input class="ticker-input" id="tickerInput" type="text" placeholder="aapl 26jul17 300c" onkeydown="if(event.key==='Enter')fetchQuote()">
+        <input class="ticker-input" id="tickerInput" type="text" placeholder="aapl 26jul17 300 c" onkeydown="if(event.key==='Enter')fetchQuote()">
         <button class="fetch-btn" id="fetchBtn" onclick="fetchQuote()">FETCH</button>
+        <span class="info-icon">?<div class="info-tooltip"><b>Search formats</b><br><br><code>AAPL</code> — ticker only, browse chain<br><br><code>aapl 26jul17 300 c</code> — single call<br><code>aapl 26jul17 300 p</code> — single put<br><br><code>aapl 26jul 300 c</code> — no day: shows term structure across all July expirations<br><br><code>aapl 26jul17 300 320 cs</code> — call spread (long 300c, short 320c)<br><code>aapl 26jul17 300 280 ps</code> — put spread<br><br><b>Format:</b> ticker &nbsp;expiry &nbsp;strike(s) &nbsp;type<br><b>Types:</b> <code>c</code> call · <code>p</code> put · <code>cs</code> call spread · <code>ps</code> put spread</div></span>
       </div>
       <div class="mkt-row" id="expiryRow" style="display:none;">
         <select class="mkt-select" id="expirySelect" onchange="fetchChain()">
