@@ -1470,28 +1470,60 @@ async function handleFormula(f){
         if(dist<bestDist){bestDist=dist;targetExp=e;}
       }
     } else {
-      // Month only: find standard monthly expiry (3rd Friday) or nearest to it
+      // Month only: show term structure — same strike across all month expirations
       const monthExps=allExps.filter(e=>e.startsWith(f.expirationPrefix));
-      if(monthExps.length>0){
-        // Find 3rd Friday of the month
-        const y=f.year, m=parseInt(f.month)-1;
-        const first=new Date(y,m,1);
-        let fri1Day=((5-first.getDay()+7)%7)+1;
-        const thirdFri=new Date(y,m,fri1Day+14);
-        const tfStr=thirdFri.toISOString().slice(0,10);
-        // Pick expiry nearest to 3rd Friday
-        let bestDist=Infinity;
-        for(const e of monthExps){
-          const dist=Math.abs(new Date(e+'T12:00:00')-thirdFri);
-          if(dist<bestDist){bestDist=dist;targetExp=e;}
-        }
-        // Filter dropdown to only this month's expirations
-        populateExpiryDropdown(monthExps);
-      } else {
-        targetExp=allExps[0];
+      if(monthExps.length===0){
+        setStatus('No '+f.monthName+' '+f.year+' expirations found','error');
+        document.getElementById('fetchBtn').disabled=false;return;
       }
+      setStatus(`Fetching ${f.strike}${f.type==='call'?'C':'P'} across ${monthExps.length} ${f.monthName} expirations...`,'');
+      // Fetch all month expirations in parallel
+      const chainPromises=monthExps.map(exp=>
+        apiFetch('/api/tradier/chain?symbol='+encodeURIComponent(f.ticker)+'&expiration='+exp)
+          .then(r=>({exp,data:r})).catch(()=>({exp,data:null}))
+      );
+      const results=await Promise.all(chainPromises);
+      const termRows=[];
+      for(const{exp,data}of results){
+        if(!data||!data.contracts)continue;
+        if(data.underlying_price)liveStockPrice=data.underlying_price;
+        const match=data.contracts.find(c=>c.option_type===f.type&&Math.abs(c.strike-f.strike)<0.5);
+        if(match)termRows.push({exp,...match});
+      }
+      if(termRows.length===0){
+        setStatus('No '+f.strike+(f.type==='call'?'C':'P')+' found in '+f.monthName+' expirations','error');
+        document.getElementById('fetchBtn').disabled=false;return;
+      }
+      // Render term structure table
+      const typeLabel=f.type==='call'?'CALL':'PUT';
+      const hdr=`<span style="font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:0.1em;color:var(--text-dim);">${f.ticker} ${f.strike} ${typeLabel} — ${f.monthName.toUpperCase()} ${f.year} TERM STRUCTURE</span>`;
+      const thead='<tr><th>Expiry</th><th>DTE</th><th>Bid</th><th>Ask</th><th>Mid</th><th>IV</th><th>Vol</th><th>OI</th><th></th></tr>';
+      const tbody=termRows.map(r=>{
+        const dte=Math.max(Math.round((new Date(r.exp+'T16:00:00')-new Date())/(1000*60*60*24)),1);
+        const iv=r.implied_volatility;
+        return`<tr onclick="loadTermOption('${f.ticker}','${r.exp}',${r.strike},${iv||0.25},'${f.type}',${dte})" style="cursor:pointer;">
+          <td style="text-align:left">${r.exp}</td><td>${dte}d</td>
+          <td>${(r.bid||0).toFixed(2)}</td><td>${(r.ask||0).toFixed(2)}</td>
+          <td>${(r.midpoint||((r.bid||0)+(r.ask||0))/2).toFixed(2)}</td>
+          <td>${iv?(iv*100).toFixed(1)+'%':'--'}</td>
+          <td>${(r.volume||0).toLocaleString()}</td><td>${(r.open_interest||0).toLocaleString()}</td>
+          <td style="color:var(--blue);font-size:9px;">USE</td></tr>`;
+      }).join('');
+      const chainWrap=document.getElementById('chainWrap');
+      chainWrap.innerHTML=`<div style="margin-top:8px;">${hdr}</div>
+        <div class="chain-scroll" id="chainScroll"><table class="chain-table"><thead>${thead}</thead><tbody>${tbody}</tbody></table></div>`;
+      chainWrap.classList.remove('hidden');
+      populateExpiryDropdown(monthExps);
+      document.getElementById('expirySelect').value='';
+      setSingleType(f.type);
+      update();
+      fetchSupplemental(f.ticker);
+      setStatus(`${termRows.length} ${f.monthName} expirations for ${f.strike}${f.type==='call'?'C':'P'}`,'success');
+      document.getElementById('fetchBtn').disabled=false;
+      return;
     }
 
+    // === Full-date path (specific expiry) ===
     // 3. Fetch chain for best expiry
     const chainResp=await apiFetch('/api/tradier/chain?symbol='+encodeURIComponent(f.ticker)+'&expiration='+targetExp);
     if(!chainResp||!chainResp.contracts||chainResp.contracts.length===0){
@@ -1500,12 +1532,10 @@ async function handleFormula(f){
     }
     chainData=chainResp.contracts;
     if(chainResp.underlying_price)liveStockPrice=chainResp.underlying_price;
-    document.getElementById('expirySelect').value=targetExp;
 
     // 4. Find matching strike
     let matches=chainData.filter(c=>c.option_type===f.type&&Math.abs(c.strike-f.strike)<0.5);
     if(matches.length===0){
-      // Find nearest strike of the right type
       const sameType=chainData.filter(c=>c.option_type===f.type);
       if(sameType.length>0){
         sameType.sort((a,b)=>Math.abs(a.strike-f.strike)-Math.abs(b.strike-f.strike));
@@ -1513,7 +1543,6 @@ async function handleFormula(f){
         setStatus('No '+f.strike+' strike — nearest is '+matches[0].strike,'');
       }
     }
-
     if(matches.length===0){
       renderChain();
       document.getElementById('chainWrap').classList.remove('hidden');
@@ -1525,18 +1554,13 @@ async function handleFormula(f){
     const exp=targetExp;
     const dte=Math.max(Math.round((new Date(exp+'T16:00:00')-new Date())/(1000*60*60*24)),1);
 
-    // Populate expiry dropdown — keep month filter for month-only formulas
-    if(f.expiration){
-      const exps=[...new Set(chainData.map(c=>c.expiration_date))].sort();
-      populateExpiryDropdown(exps);
-    }
+    const exps=[...new Set(chainData.map(c=>c.expiration_date))].sort();
+    populateExpiryDropdown(exps);
     document.getElementById('expirySelect').value=exp;
 
-    // Sync chain display type with formula type and show chain
     chainShowPuts=(f.type==='put');
     document.getElementById('chainTypeBtn').textContent=chainShowPuts?'Show calls':'Show puts';
 
-    // Load the option
     if(appMode==='single'){
       document.getElementById('sl-K').value=match.strike;
       if(match.implied_volatility>0)document.getElementById('sl-IV').value=Math.round(match.implied_volatility*100);
@@ -1547,7 +1571,6 @@ async function handleFormula(f){
 
     renderChain();
     document.getElementById('chainWrap').classList.remove('hidden');
-    // Scroll chain to selected row after layout settles
     setTimeout(()=>{
       const sc=document.getElementById('chainScroll');
       const selRow=document.querySelector('.chain-table tr.selected');
@@ -1558,11 +1581,7 @@ async function handleFormula(f){
     fetchSupplemental(f.ticker);
 
     const typeLabel=f.type==='call'?'CALL':'PUT';
-    if(matches.length===1){
-      setStatus(`${f.ticker} ${exp} ${match.strike} ${typeLabel} loaded — IV ${match.implied_volatility>0?(match.implied_volatility*100).toFixed(1)+'%':'N/A'}`,'success');
-    } else {
-      setStatus(`${matches.length} ${typeLabel}s at ${f.strike} found — showing nearest`,'success');
-    }
+    setStatus(`${f.ticker} ${exp} ${match.strike} ${typeLabel} loaded — IV ${match.implied_volatility>0?(match.implied_volatility*100).toFixed(1)+'%':'N/A'}`,'success');
   }catch(e){setStatus('Error: '+e.message,'error');}
   document.getElementById('fetchBtn').disabled=false;
 }
@@ -1666,6 +1685,7 @@ function toggleChainType(){
 }
 
 function renderChain(){
+  restoreChainWrap();
   const type=chainShowPuts?'put':'call';
   const filtered=chainData.filter(o=>o.option_type===type);
   const S=getS();
@@ -1711,6 +1731,35 @@ function loadFromChain(strike,iv,type){
     addLeg({type,dir:'long',K:strike,IV:iv>0?Math.round(iv*100):25,T:dte,qty:1});
     update();
     setStatus('Added '+type.toUpperCase()+' K='+strike+' leg','success');
+  }
+}
+
+function restoreChainWrap(){
+  const cw=document.getElementById('chainWrap');
+  if(!document.getElementById('chainBody')){
+    cw.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;">
+      <span style="font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:0.1em;color:var(--text-dim);">OPTIONS CHAIN</span>
+      <button class="mkt-toggle" onclick="toggleChainType()" id="chainTypeBtn">Show puts</button>
+    </div><div class="chain-scroll" id="chainScroll"><table class="chain-table">
+      <thead><tr><th>Strike</th><th>Bid</th><th>Ask</th><th>IV</th><th>Vol</th><th>OI</th><th></th></tr></thead>
+      <tbody id="chainBody"></tbody></table></div>`;
+  }
+}
+
+function loadTermOption(ticker,exp,strike,iv,type,dte){
+  document.getElementById('expirySelect').value=exp;
+  if(appMode==='single'){
+    document.getElementById('sl-K').value=strike;
+    if(iv>0)document.getElementById('sl-IV').value=Math.round(iv*100);
+    document.getElementById('sl-T').value=dte;
+    setSingleType(type);
+    loadedOption={strike,iv:iv>0?Math.round(iv*100):25,type,dte,spot:getS()};
+    update();
+    setStatus(`${ticker} ${exp} ${strike} ${type.toUpperCase()} loaded — IV ${iv>0?(iv*100).toFixed(1)+'%':'N/A'}`,'success');
+  } else {
+    addLeg({type,dir:'long',K:strike,IV:iv>0?Math.round(iv*100):25,T:dte,qty:1});
+    update();
+    setStatus('Added '+type.toUpperCase()+' K='+strike+' '+exp+' leg','success');
   }
 }
 
