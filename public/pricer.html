@@ -202,6 +202,12 @@ input[type=range]:hover::-webkit-slider-thumb{background:var(--blue);}
 .mkt-toggle{font-size:10px;color:var(--blue);cursor:pointer;background:none;border:none;font-family:var(--sans);padding:0;}
 .mkt-toggle:hover{text-decoration:underline;}
 
+/* live dot */
+.live-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#059669;margin-right:4px;animation:pulse 2s infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.3;}}
+.live-info{font-family:var(--mono);font-size:9px;color:var(--text-dim);display:flex;align-items:center;gap:2px;}
+.live-info .live-price-val{color:var(--green);font-weight:600;}
+
 /* hidden */
 .hidden{display:none!important;}
 </style>
@@ -268,6 +274,7 @@ input[type=range]:hover::-webkit-slider-thumb{background:var(--blue);}
         </select>
       </div>
       <div class="mkt-status" id="mktStatus"></div>
+      <div class="live-info hidden" id="liveInfo"><span class="live-dot"></span>LIVE <span class="live-price-val" id="livePriceVal">--</span> <span id="liveTime"></span></div>
       <div class="mkt-quote hidden" id="mktQuote">
         <span class="mkt-quote-item">Last <span id="mq-last">--</span></span>
         <span class="mkt-quote-item">Chg <span id="mq-chg">--</span></span>
@@ -624,7 +631,7 @@ function setSingleType(t){
 }
 
 /* ── Tabs ─────────────────────────────────── */
-const SINGLE_TABS=[{id:'payoff',label:'Payoff'},{id:'pnl',label:'P&L'},{id:'price',label:'Price vs spot'},{id:'delta',label:'Delta vs spot'},{id:'gamma',label:'Gamma vs spot'},{id:'vega',label:'Vega vs spot'},{id:'theta',label:'Theta decay'}];
+const SINGLE_TABS=[{id:'payoff',label:'Payoff'},{id:'pnl',label:'P&L'},{id:'price',label:'Price vs spot'},{id:'delta',label:'Delta vs spot'},{id:'gamma',label:'Gamma vs spot'},{id:'vega',label:'Vega vs spot'},{id:'theta',label:'Theta decay'},{id:'iv_smile',label:'IV Smile'}];
 const MULTI_TABS=[{id:'pnl',label:'P&L at expiry'},{id:'delta',label:'Net Delta'},{id:'gamma',label:'Net Gamma'},{id:'vega',label:'Net Vega'},{id:'theta',label:'Net Theta'}];
 
 function rebuildTabs(){
@@ -797,6 +804,43 @@ function multiPayoff(spot,S,r,q){
 /* ── Spot range helper ───────────────────── */
 function spotRange(S,steps){const lo=Math.max(S*0.5,0.01),hi=S*1.5,sz=(hi-lo)/steps;return Array.from({length:steps+1},(_,i)=>+(lo+i*sz).toFixed(2));}
 
+/* ── Current price line plugin ───────────── */
+const currentPriceLinePlugin={
+  id:'currentPriceLine',
+  afterDraw(chart){
+    const price=liveStockPrice;
+    if(!price)return;
+    const meta=chart.options.plugins?.currentPriceLine;
+    if(!meta?.show)return;
+    const xScale=chart.scales.x;
+    if(!xScale)return;
+    const labels=chart.data.labels;
+    if(!labels||!labels.length)return;
+    const first=parseFloat(labels[0]),last=parseFloat(labels[labels.length-1]);
+    if(isNaN(first)||isNaN(last))return;
+    if(price<first||price>last)return;
+    let lo=0;
+    for(let i=0;i<labels.length;i++){if(parseFloat(labels[i])>=price){lo=Math.max(0,i-1);break;}}
+    const hi=Math.min(lo+1,labels.length-1);
+    const loVal=parseFloat(labels[lo]),hiVal=parseFloat(labels[hi]);
+    const frac=hiVal===loVal?0:(price-loVal)/(hiVal-loVal);
+    const xLo=xScale.getPixelForValue(lo),xHi=xScale.getPixelForValue(hi);
+    const x=xLo+frac*(xHi-xLo);
+    const ctx=chart.ctx,top=chart.chartArea.top,bottom=chart.chartArea.bottom;
+    ctx.save();
+    ctx.beginPath();ctx.setLineDash([4,3]);
+    ctx.strokeStyle='rgba(5,150,105,0.7)';ctx.lineWidth=1.5;
+    ctx.moveTo(x,top);ctx.lineTo(x,bottom);ctx.stroke();
+    if(meta.showLabel){
+      ctx.setLineDash([]);ctx.fillStyle='#059669';
+      ctx.font='bold 9px JetBrains Mono';ctx.textAlign='center';
+      ctx.fillText('$'+price.toFixed(0),x,top-4);
+    }
+    ctx.restore();
+  }
+};
+Chart.register(currentPriceLinePlugin);
+
 /* ── Chart helpers ───────────────────────── */
 function baseScales(xCb,yCb){return{x:{ticks:{color:TC,font:TF,maxTicksLimit:6,callback:xCb},grid:{color:GC},border:{color:AC}},y:{ticks:{color:TC,font:TF,maxTicksLimit:5,callback:yCb},grid:{color:GC},border:{color:AC}}};}
 function fmtD(v){return(v>=0?'$':'-$')+Math.abs(v).toFixed(2);}
@@ -808,10 +852,10 @@ const tooltipCfg=(isDollar)=>({backgroundColor:'#fff',borderColor:'rgba(0,0,0,0.
 /* ── Draw main chart ─────────────────────── */
 function drawMainChart(S,r,q,singleRes,singlePremium){
   const spots=spotRange(S,120);
-  const labels=spots.map(sp=>sp.toFixed(1));
+  let labels=spots.map(sp=>sp.toFixed(1));
   let datasets=[];
   let isDollar=true;
-  const xCb=(v,i)=>'$'+parseFloat(labels[i]).toFixed(0);
+  const xCb=(v,i)=>labels[i]!=null?'$'+parseFloat(labels[i]).toFixed(0):'';
 
   if(appMode==='single'){
     const K=parseFloat(document.getElementById('sl-K').value);
@@ -826,12 +870,29 @@ function drawMainChart(S,r,q,singleRes,singlePremium){
       else if(chartMode==='gamma'){d1.push(+bs(spot,K,T,r,q,IV,singleType).gamma.toFixed(6));isDollar=false;}
       else if(chartMode==='vega'){d1.push(+bs(spot,K,T,r,q,IV,singleType).vega.toFixed(5));isDollar=false;}
       else if(chartMode==='theta'){const tRem=T*(1-i/spots.length);d1.push(tRem>0?+bs(S,K,tRem,r,q,IV,singleType).theta.toFixed(5):0);labels[i]=Math.round(tRem*365);isDollar=false;}
+      else if(chartMode==='iv_smile'){/* handled below */}
     });
-    const mC={payoff:'#2563EB',pnl:'#2563EB',price:'#2563EB',delta:'#2563EB',gamma:'#7C3AED',vega:'#D97706',theta:'#DC2626'};
-    datasets=chartMode==='payoff'?[
-      {label:'Payoff',data:d1,borderColor:'#2563EB',borderWidth:2,tension:0.1,pointRadius:0,fill:false},
-      {label:'Premium',data:d2,borderColor:'#DC2626',borderWidth:1.5,borderDash:[6,4],tension:0,pointRadius:0,fill:false},
-    ]:[{label:chartMode,data:d1,borderColor:mC[chartMode],borderWidth:2,tension:0.2,pointRadius:0,fill:chartMode==='pnl'?{target:'origin',above:'rgba(37,99,235,0.06)',below:'rgba(220,38,38,0.06)'}:false}];
+    // IV Smile: override labels/datasets from chain data
+    if(chartMode==='iv_smile'){
+      const ctype=chainShowPuts?'put':'call';
+      const filtered=chainData.filter(c=>c.option_type===ctype&&c.implied_volatility>0);
+      filtered.sort((a,b)=>a.strike-b.strike);
+      if(filtered.length>0){
+        labels=filtered.map(c=>c.strike.toFixed(0));
+        const ivData=filtered.map(c=>+(c.implied_volatility*100).toFixed(2));
+        datasets=[{label:'IV % ('+ctype+')',data:ivData,borderColor:'#7C3AED',borderWidth:2,tension:0.3,pointRadius:2,pointBackgroundColor:'#7C3AED',fill:false}];
+      } else {
+        labels=['Load chain data'];datasets=[];
+      }
+      isDollar=false;
+    }
+    const mC={payoff:'#2563EB',pnl:'#2563EB',price:'#2563EB',delta:'#2563EB',gamma:'#7C3AED',vega:'#D97706',theta:'#DC2626',iv_smile:'#7C3AED'};
+    if(chartMode!=='iv_smile'){
+      datasets=chartMode==='payoff'?[
+        {label:'Payoff',data:d1,borderColor:'#2563EB',borderWidth:2,tension:0.1,pointRadius:0,fill:false},
+        {label:'Premium',data:d2,borderColor:'#DC2626',borderWidth:1.5,borderDash:[6,4],tension:0,pointRadius:0,fill:false},
+      ]:[{label:chartMode,data:d1,borderColor:mC[chartMode],borderWidth:2,tension:0.2,pointRadius:0,fill:chartMode==='pnl'?{target:'origin',above:'rgba(37,99,235,0.06)',below:'rgba(220,38,38,0.06)'}:false}];
+    }
   } else {
     // multi-leg
     syncLegsFromDOM();
@@ -871,9 +932,10 @@ function drawMainChart(S,r,q,singleRes,singlePremium){
     }
   }
 
-  const yCb=v=>isDollar?(v>=0?'$':'-$')+Math.abs(v).toFixed(1):v.toFixed(3);
-  if(mainChart){mainChart.data.labels=labels;mainChart.data.datasets=datasets;mainChart.options.scales=baseScales(xCb,yCb);mainChart.options.plugins.tooltip=tooltipCfg(isDollar);mainChart.update('none');}
-  else{const ctx=document.getElementById('mainChart').getContext('2d');mainChart=new Chart(ctx,{type:'line',data:{labels,datasets},options:{responsive:true,maintainAspectRatio:false,resizeDelay:100,animation:NO_ANIM,transitions:{resize:{animation:RESIZE_ANIM}},interaction:{mode:'index',intersect:false},plugins:{legend:{display:false},tooltip:tooltipCfg(isDollar)},scales:baseScales(xCb,yCb)}});}
+  const yCb=chartMode==='iv_smile'?v=>v.toFixed(1)+'%':v=>isDollar?(v>=0?'$':'-$')+Math.abs(v).toFixed(1):v.toFixed(3);
+  const plOpts={currentPriceLine:{show:true,showLabel:true}};
+  if(mainChart){mainChart.data.labels=labels;mainChart.data.datasets=datasets;mainChart.options.scales=baseScales(xCb,yCb);mainChart.options.plugins.tooltip=tooltipCfg(isDollar);mainChart.options.plugins.currentPriceLine=plOpts.currentPriceLine;mainChart.update('none');}
+  else{const ctx=document.getElementById('mainChart').getContext('2d');mainChart=new Chart(ctx,{type:'line',data:{labels,datasets},options:{responsive:true,maintainAspectRatio:false,resizeDelay:100,animation:NO_ANIM,transitions:{resize:{animation:RESIZE_ANIM}},interaction:{mode:'index',intersect:false},plugins:{legend:{display:false},tooltip:tooltipCfg(isDollar),...plOpts},scales:baseScales(xCb,yCb)}});}
 
   // footer
   buildFooter(S,r,q,singlePremium);
@@ -908,7 +970,7 @@ function buildFooter(S,r,q,singlePremium){
 /* ── Mini charts ─────────────────────────── */
 function makeMiniChart(canvasId,color){
   const ctx=document.getElementById(canvasId).getContext('2d');
-  return new Chart(ctx,{type:'line',data:{labels:[],datasets:[{data:[],borderColor:color,borderWidth:1.5,tension:0.3,pointRadius:0,fill:false}]},options:{responsive:true,maintainAspectRatio:false,resizeDelay:100,animation:NO_ANIM,transitions:{resize:{animation:RESIZE_ANIM}},plugins:{legend:{display:false},tooltip:{enabled:false}},scales:{x:{display:false},y:{display:false}}}});
+  return new Chart(ctx,{type:'line',data:{labels:[],datasets:[{data:[],borderColor:color,borderWidth:1.5,tension:0.3,pointRadius:0,fill:false}]},options:{responsive:true,maintainAspectRatio:false,resizeDelay:100,animation:NO_ANIM,transitions:{resize:{animation:RESIZE_ANIM}},plugins:{legend:{display:false},tooltip:{enabled:false},currentPriceLine:{show:true,showLabel:false}},scales:{x:{display:false},y:{display:false}}}});
 }
 function updateMini(chart,labels,data){chart.data.labels=labels;chart.data.datasets[0].data=data;chart.update('none');}
 
@@ -1206,6 +1268,8 @@ function resetAnims(){
 let chainData=[];
 let chainShowPuts=false;
 let currentTicker='';
+let liveStockPrice=null;
+let autoRefreshTimer=null;
 
 function setStatus(msg,cls){
   const el=document.getElementById('mktStatus');
@@ -1234,7 +1298,10 @@ async function fetchQuote(){
     const q=await apiFetch('/api/tradier/quote?symbol='+encodeURIComponent(ticker));
     if(!q){document.getElementById('fetchBtn').disabled=false;return;}
     if(q.error){setStatus(q.error,'error');document.getElementById('fetchBtn').disabled=false;return;}
-    const price=q.last||0;
+    const price=q.last||q.underlying_price||0;
+    liveStockPrice=price;
+    updateLiveIndicator(price);
+    startAutoRefresh();
 
     document.getElementById('mq-last').textContent='$'+price.toFixed(2);
     const chg=q.change||0;
@@ -1288,6 +1355,7 @@ async function fetchChain(){
     if(!data)return;
     if(!data.contracts||data.contracts.length===0){setStatus('No chain data','error');return;}
     chainData=data.contracts;
+    if(data.underlying_price){liveStockPrice=data.underlying_price;updateLiveIndicator(data.underlying_price);}
     renderChain();
     document.getElementById('chainWrap').classList.remove('hidden');
 
@@ -1346,6 +1414,34 @@ function loadFromChain(strike,iv,type){
     update();
     setStatus('Added '+type.toUpperCase()+' K='+strike+' leg','success');
   }
+}
+
+/* ── Live price helpers ──────────────────── */
+function updateLiveIndicator(price){
+  const el=document.getElementById('liveInfo');
+  el.classList.remove('hidden');
+  document.getElementById('livePriceVal').textContent='$'+price.toFixed(2);
+  const now=new Date();
+  document.getElementById('liveTime').textContent=now.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+}
+
+function startAutoRefresh(){
+  if(autoRefreshTimer)clearInterval(autoRefreshTimer);
+  autoRefreshTimer=setInterval(autoRefreshPrice,30000);
+}
+
+async function autoRefreshPrice(){
+  if(!currentTicker)return;
+  try{
+    const q=await apiFetch('/api/tradier/quote?symbol='+encodeURIComponent(currentTicker));
+    if(!q||q.error)return;
+    const price=q.last||q.underlying_price||0;
+    if(price<=0)return;
+    liveStockPrice=price;
+    updateLiveIndicator(price);
+    document.getElementById('mq-last').textContent='$'+price.toFixed(2);
+    update();
+  }catch(e){/* silent */}
 }
 
 /* ── Init ────────────────────────────────── */
