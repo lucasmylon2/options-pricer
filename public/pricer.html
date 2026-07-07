@@ -99,7 +99,7 @@ input[type=range]:hover::-webkit-slider-thumb{background:var(--blue);}
 .add-leg-btn:hover{background:rgba(37,99,235,0.1);}
 
 /* center panel */
-.panel-center{display:flex;flex-direction:column;min-height:0;background:var(--bg);overflow:hidden;}
+.panel-center{display:flex;flex-direction:column;min-height:0;background:var(--bg);overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;scrollbar-color:var(--border-hi) transparent;}
 .chart-tabs{display:flex;border-bottom:1px solid var(--border);padding:0 16px;background:var(--bg1);flex-shrink:0;overflow-x:auto;}
 .chart-tab{padding:10px 0;margin-right:18px;font-size:12px;color:var(--text-dim);cursor:pointer;border:none;border-bottom:2px solid transparent;background:none;font-family:var(--sans);white-space:nowrap;}
 .chart-tab:hover{color:var(--text-secondary);}
@@ -113,10 +113,10 @@ input[type=range]:hover::-webkit-slider-thumb{background:var(--blue);}
 .footer-stat{font-family:var(--mono);font-size:10px;color:var(--text-dim);margin-left:auto;}
 .footer-stat span{color:var(--amber);font-weight:600;}
 
-.greek-charts-section{flex:1;overflow-y:auto;padding:10px 12px 12px;scrollbar-width:thin;scrollbar-color:var(--border-hi) transparent;}
+.greek-charts-section{flex:0 0 auto;padding:10px 12px 12px;}
 .greek-charts-section::-webkit-scrollbar{width:3px;}
 .greek-charts-section::-webkit-scrollbar-thumb{background:var(--border-hi);}
-.greek-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;}
+.greek-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;}
 .mini-chart-card{background:var(--bg1);border:1px solid var(--border);border-radius:4px;padding:8px 9px 7px;}
 .mini-chart-header{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:1px;}
 .mini-chart-name{font-size:11px;font-weight:500;color:var(--text-secondary);}
@@ -366,11 +366,11 @@ input[type=range]:hover::-webkit-slider-thumb{background:var(--blue);}
         <div class="p-heading">OPTION PARAMS</div>
         <div class="slider-group">
           <div class="slider-meta"><span class="slider-name">Strike <em>(K)</em></span><span class="slider-value" id="lbl-K">$100</span></div>
-          <input type="range" id="sl-K" min="1" max="500" step="1" value="100">
+          <input type="range" id="sl-K" min="1" max="500" step="0.5" value="100">
         </div>
         <div class="slider-group">
           <div class="slider-meta"><span class="slider-name">Implied vol <em>(σ)</em></span><span class="slider-value" id="lbl-IV">25%</span></div>
-          <input type="range" id="sl-IV" min="1" max="150" step="1" value="25">
+          <input type="range" id="sl-IV" min="1" max="200" step="0.1" value="25">
         </div>
         <div class="slider-group">
           <div class="slider-meta"><span class="slider-name">Days to expiry <em>(T)</em></span><span class="slider-value" id="lbl-T">30d</span></div>
@@ -380,8 +380,8 @@ input[type=range]:hover::-webkit-slider-thumb{background:var(--blue);}
       <div class="p-section">
         <div class="p-heading">RATES &amp; CARRY</div>
         <div class="slider-group">
-          <div class="slider-meta"><span class="slider-name">Risk-free rate <em>(r)</em></span><span class="slider-value" id="lbl-r">5.0%</span></div>
-          <input type="range" id="sl-r" min="0" max="15" step="0.1" value="5">
+          <div class="slider-meta"><span class="slider-name">Risk-free rate <em>(r)</em></span><span class="slider-value" id="lbl-r">4.0%</span></div>
+          <input type="range" id="sl-r" min="0" max="15" step="0.1" value="4">
         </div>
         <div class="slider-group">
           <div class="slider-meta"><span class="slider-name">Dividend yield <em>(q)</em></span><span class="slider-value" id="lbl-q">0.0%</span></div>
@@ -396,8 +396,8 @@ input[type=range]:hover::-webkit-slider-thumb{background:var(--blue);}
       <div class="p-section">
         <div class="p-heading">RATES &amp; CARRY</div>
         <div class="slider-group">
-          <div class="slider-meta"><span class="slider-name">Risk-free rate <em>(r)</em></span><span class="slider-value" id="lbl-rm">5.0%</span></div>
-          <input type="range" id="sl-rm" min="0" max="15" step="0.1" value="5">
+          <div class="slider-meta"><span class="slider-name">Risk-free rate <em>(r)</em></span><span class="slider-value" id="lbl-rm">4.0%</span></div>
+          <input type="range" id="sl-rm" min="0" max="15" step="0.1" value="4">
         </div>
         <div class="slider-group">
           <div class="slider-meta"><span class="slider-name">Dividend yield <em>(q)</em></span><span class="slider-value" id="lbl-qm">0.0%</span></div>
@@ -687,7 +687,7 @@ function resetCurrentMode(){
     document.getElementById('sl-K').value=Math.round(S);
     document.getElementById('sl-IV').value=25;
     document.getElementById('sl-T').value=30;
-    document.getElementById('sl-r').value=5;
+    document.getElementById('sl-r').value=4;
     document.getElementById('sl-q').value=0;
     document.getElementById('sl-S').value=Math.round(S);
     loadedOption=null;
@@ -697,7 +697,7 @@ function resetCurrentMode(){
     legs=[];legIdCounter=0;
     renderLegs();
     document.querySelectorAll('.strat-btn').forEach(b=>b.classList.remove('active'));
-    document.getElementById('sl-rm').value=5;
+    document.getElementById('sl-rm').value=4;
     document.getElementById('sl-qm').value=0;
     savedMultiState=null;
   }
@@ -1142,13 +1142,13 @@ function update(){
 
   if(liveStockPrice&&Math.abs(S-liveStockPrice)/liveStockPrice>0.005){
     const pct=((S-liveStockPrice)/liveStockPrice*100);
-    document.getElementById('lbl-S').innerHTML='$'+S.toFixed(0)+' <span style="font-size:10px;color:'+(pct>=0?'var(--green)':'var(--red)')+'">'+(pct>=0?'+':'')+pct.toFixed(1)+'%</span>';
+    document.getElementById('lbl-S').innerHTML='$'+S.toFixed(2)+' <span style="font-size:10px;color:'+(pct>=0?'var(--green)':'var(--red)')+'">'+(pct>=0?'+':'')+pct.toFixed(1)+'%</span>';
   } else {
-    document.getElementById('lbl-S').textContent='$'+S.toFixed(0);
+    document.getElementById('lbl-S').textContent='$'+S.toFixed(2);
   }
   if(appMode==='single'){
-    document.getElementById('lbl-K').textContent='$'+parseFloat(document.getElementById('sl-K').value).toFixed(0);
-    document.getElementById('lbl-IV').textContent=parseFloat(document.getElementById('sl-IV').value).toFixed(0)+'%';
+    document.getElementById('lbl-K').textContent='$'+parseFloat(document.getElementById('sl-K').value).toFixed(2);
+    document.getElementById('lbl-IV').textContent=parseFloat(document.getElementById('sl-IV').value).toFixed(1)+'%';
     document.getElementById('lbl-T').textContent=parseFloat(document.getElementById('sl-T').value).toFixed(0)+'d';
     document.getElementById('lbl-r').textContent=parseFloat(document.getElementById('sl-r').value).toFixed(1)+'%';
     document.getElementById('lbl-q').textContent=parseFloat(document.getElementById('sl-q').value).toFixed(1)+'%';
@@ -1442,7 +1442,7 @@ async function handleFormula(f){
     // Set spot range
     const sl=document.getElementById('sl-S');
     const mn=Math.max(Math.round(price*0.5),1),mx=Math.round(price*2);
-    const step=price>500?5:price>100?1:price>10?0.5:0.01;
+    const step=price>500?1:price>100?0.5:price>10?0.1:0.01;
     sl.min=mn;sl.max=mx;sl.step=step;sl.value=price;
     document.getElementById('sl-S-min').value=mn;
     document.getElementById('sl-S-max').value=mx;
@@ -1563,10 +1563,10 @@ async function handleFormula(f){
 
     if(appMode==='single'){
       document.getElementById('sl-K').value=match.strike;
-      if(match.implied_volatility>0)document.getElementById('sl-IV').value=Math.round(match.implied_volatility*100);
+      if(match.implied_volatility>0)document.getElementById('sl-IV').value=+(match.implied_volatility*100).toFixed(1);
       document.getElementById('sl-T').value=dte;
       setSingleType(f.type);
-      loadedOption={strike:match.strike,iv:match.implied_volatility>0?Math.round(match.implied_volatility*100):25,type:f.type,dte,spot:Math.round(price)};
+      loadedOption={strike:match.strike,iv:match.implied_volatility>0?+(match.implied_volatility*100).toFixed(1):25,type:f.type,dte,spot:price};
     }
 
     renderChain();
@@ -1623,7 +1623,7 @@ async function fetchQuote(){
     const sl=document.getElementById('sl-S');
     const mn=Math.max(Math.round(price*0.5),1);
     const mx=Math.round(price*2);
-    const step=price>500?5:price>100?1:price>10?0.5:0.01;
+    const step=price>500?1:price>100?0.5:price>10?0.1:0.01;
     sl.min=mn;sl.max=mx;sl.step=step;sl.value=price;
     document.getElementById('sl-S-min').value=mn;
     document.getElementById('sl-S-max').value=mx;
@@ -1720,15 +1720,15 @@ function loadFromChain(strike,iv,type){
   const dte=parseInt(document.getElementById('expirySelect').selectedOptions[0]?.textContent.match(/\((\d+)d\)/)?.[1])||30;
   if(appMode==='single'){
     document.getElementById('sl-K').value=strike;
-    if(iv>0){document.getElementById('sl-IV').value=Math.round(iv*100);}
+    if(iv>0){document.getElementById('sl-IV').value=+(iv*100).toFixed(1);}
     document.getElementById('sl-T').value=dte;
     setSingleType(type);
-    loadedOption={strike,iv:iv>0?Math.round(iv*100):25,type,dte,spot:getS()};
+    loadedOption={strike,iv:iv>0?+(iv*100).toFixed(1):25,type,dte,spot:getS()};
     renderChain();
     update();
     setStatus('Loaded K='+strike+' '+type.toUpperCase()+' — double-click sliders to reset','success');
   } else {
-    addLeg({type,dir:'long',K:strike,IV:iv>0?Math.round(iv*100):25,T:dte,qty:1});
+    addLeg({type,dir:'long',K:strike,IV:iv>0?+(iv*100).toFixed(1):25,T:dte,qty:1});
     update();
     setStatus('Added '+type.toUpperCase()+' K='+strike+' leg','success');
   }
@@ -1750,14 +1750,14 @@ function loadTermOption(ticker,exp,strike,iv,type,dte){
   document.getElementById('expirySelect').value=exp;
   if(appMode==='single'){
     document.getElementById('sl-K').value=strike;
-    if(iv>0)document.getElementById('sl-IV').value=Math.round(iv*100);
+    if(iv>0)document.getElementById('sl-IV').value=+(iv*100).toFixed(1);
     document.getElementById('sl-T').value=dte;
     setSingleType(type);
-    loadedOption={strike,iv:iv>0?Math.round(iv*100):25,type,dte,spot:getS()};
+    loadedOption={strike,iv:iv>0?+(iv*100).toFixed(1):25,type,dte,spot:getS()};
     update();
     setStatus(`${ticker} ${exp} ${strike} ${type.toUpperCase()} loaded — IV ${iv>0?(iv*100).toFixed(1)+'%':'N/A'}`,'success');
   } else {
-    addLeg({type,dir:'long',K:strike,IV:iv>0?Math.round(iv*100):25,T:dte,qty:1});
+    addLeg({type,dir:'long',K:strike,IV:iv>0?+(iv*100).toFixed(1):25,T:dte,qty:1});
     update();
     setStatus('Added '+type.toUpperCase()+' K='+strike+' '+exp+' leg','success');
   }
