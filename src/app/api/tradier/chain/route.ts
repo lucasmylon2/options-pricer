@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
     let page = 0;
 
     while (url && page < MAX_PAGES) {
-      const res = await fetch(url, {
+      const res: Response = await fetch(url, {
         headers: { Authorization: `Bearer ${KEY}` },
       });
       if (!res.ok) {
