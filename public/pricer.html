@@ -174,7 +174,7 @@ input[type=range]:hover::-webkit-slider-thumb{background:var(--blue);}
 /* mkt-section styles merged into panel-left section above */
 .mkt-row{display:flex;gap:6px;align-items:center;margin-bottom:6px;}
 .mkt-row:last-child{margin-bottom:0;}
-.ticker-input{font-family:var(--mono);font-size:12px;font-weight:600;padding:4px 6px;border:1px solid var(--border-hi);border-radius:3px;background:white;color:var(--text-primary);flex:1;min-width:0;text-transform:uppercase;outline:none;}
+.ticker-input{font-family:var(--mono);font-size:12px;font-weight:600;padding:4px 6px;border:1px solid var(--border-hi);border-radius:3px;background:white;color:var(--text-primary);flex:1;min-width:0;outline:none;}
 .ticker-input:focus{border-color:var(--blue);box-shadow:0 0 0 2px rgba(37,99,235,0.1);}
 .ticker-input::placeholder{color:var(--text-dim);font-weight:400;text-transform:none;}
 .fetch-btn{padding:4px 10px;font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:0.06em;border:1px solid var(--blue);border-radius:3px;background:var(--blue);color:white;cursor:pointer;white-space:nowrap;flex-shrink:0;transition:all 0.15s;}
@@ -273,10 +273,12 @@ input[type=range]:hover::-webkit-slider-thumb{background:var(--blue);}
     <div class="mkt-section">
       <div class="p-heading">MARKET DATA</div>
       <div class="mkt-row">
-        <input class="ticker-input" id="tickerInput" type="text" placeholder="AAPL 26JUL17 315C" onkeydown="if(event.key==='Enter')fetchQuote()">
+        <input class="ticker-input" id="tickerInput" type="text" placeholder="aapl 26jul17 300c" onkeydown="if(event.key==='Enter')fetchQuote()">
         <button class="fetch-btn" id="fetchBtn" onclick="fetchQuote()">FETCH</button>
-        <select class="mkt-select" id="expirySelect" style="display:none;" onchange="fetchChain()">
-          <option value="">Expiry...</option>
+      </div>
+      <div class="mkt-row" id="expiryRow" style="display:none;">
+        <select class="mkt-select" id="expirySelect" onchange="fetchChain()">
+          <option value="">Select expiry...</option>
         </select>
       </div>
       <div class="mkt-status" id="mktStatus"></div>
@@ -1400,10 +1402,10 @@ const MONTH_MAP={jan:'01',feb:'02',mar:'03',apr:'04',may:'05',jun:'06',jul:'07',
 const MONTH_NAMES={jan:'January',feb:'February',mar:'March',apr:'April',may:'May',jun:'June',jul:'July',aug:'August',sep:'September',oct:'October',nov:'November',dec:'December'};
 
 function parseOptionFormula(input){
-  const parts=input.trim().split(/\s+/);
-  if(parts.length<3)return null;
+  const parts=input.trim().toLowerCase().split(/\s+/);
+  if(parts.length<4)return null;
   const ticker=parts[0].toUpperCase();
-  const expiryStr=parts[1].toLowerCase();
+  const expiryStr=parts[1];
   const expiryMatch=expiryStr.match(/^(\d{2})([a-z]{3})(\d{1,2})?$/);
   if(!expiryMatch)return null;
   const year=2000+parseInt(expiryMatch[1]);
@@ -1411,24 +1413,35 @@ function parseOptionFormula(input){
   if(!month)return null;
   const monthName=MONTH_NAMES[expiryMatch[2]];
   const day=expiryMatch[3]?expiryMatch[3].padStart(2,'0'):null;
-  const strikeStr=parts[2].toLowerCase();
-  const strikeMatch=strikeStr.match(/^(\d+\.?\d*)(c|p)$/);
-  if(!strikeMatch)return null;
+  // Last part is the type: c, p, cs, ps
+  const typePart=parts[parts.length-1];
+  if(!/^(c|p|cs|ps)$/.test(typePart))return null;
+  // Middle parts are strikes
+  const strikeParts=parts.slice(2,parts.length-1);
+  const strikes=strikeParts.map(s=>parseFloat(s)).filter(n=>!isNaN(n)&&n>0);
+  if(strikes.length===0)return null;
+  const isSpread=typePart==='cs'||typePart==='ps';
+  const baseType=(typePart==='c'||typePart==='cs')?'call':'put';
   return{
     ticker,year,month,monthName,day,
     expiration:day?`${year}-${month}-${day}`:null,
     expirationPrefix:`${year}-${month}`,
-    strike:parseFloat(strikeMatch[1]),
-    type:strikeMatch[2]==='c'?'call':'put'
+    strikes,
+    strike:strikes[0],
+    type:baseType,
+    isSpread,
+    spreadType:isSpread?typePart:null
   };
 }
 
 async function handleFormula(f){
-  setStatus(`Loading ${f.ticker} ${f.strike}${f.type==='call'?'C':'P'} ${f.monthName}${f.day?' '+parseInt(f.day):''} ${f.year}...`,'');
+  const strikesLabel=f.strikes.join('/');
+  const typeLabel=f.type==='call'?'C':'P';
+  const spreadLabel=f.isSpread?(f.spreadType==='cs'?'Call Spread':'Put Spread'):(f.type==='call'?'Call':'Put');
+  setStatus(`Loading ${f.ticker} ${strikesLabel}${typeLabel} ${f.monthName}${f.day?' '+parseInt(f.day):''} ${f.year} ${f.isSpread?spreadLabel:''}...`,'');
   document.getElementById('fetchBtn').disabled=true;
 
   try{
-    // 1. Fetch quote for underlying price
     const q=await apiFetch('/api/tradier/quote?symbol='+encodeURIComponent(f.ticker));
     if(!q||q.error){document.getElementById('fetchBtn').disabled=false;return;}
     const price=q.last||q.underlying_price||0;
@@ -1442,7 +1455,6 @@ async function handleFormula(f){
     document.getElementById('mq-last').textContent='$'+price.toFixed(2);
     document.getElementById('mktQuote').classList.remove('hidden');
 
-    // Set spot range
     const sl=document.getElementById('sl-S');
     const mn=Math.max(Math.round(price*0.5),1),mx=Math.round(price*2);
     const step=price>500?1:price>100?0.5:price>10?0.1:0.01;
@@ -1453,7 +1465,6 @@ async function handleFormula(f){
     document.getElementById('lbl-Srange').textContent=mn+' – '+mx;
     syncStrikeRange(mn,mx,step);
 
-    // 2. Fetch expirations to find nearest valid expiry
     const expData=await apiFetch('/api/tradier/expirations?symbol='+encodeURIComponent(f.ticker));
     if(!expData||!expData.expirations||expData.expirations.length===0){
       setStatus('No expirations found for '+f.ticker,'error');
@@ -1462,10 +1473,8 @@ async function handleFormula(f){
     const allExps=expData.expirations;
     populateExpiryDropdown(allExps);
 
-    // Find best matching expiration
     let targetExp;
     if(f.expiration){
-      // Full date: find nearest expiry to requested date
       const target=new Date(f.expiration+'T12:00:00');
       let bestDist=Infinity;
       for(const e of allExps){
@@ -1473,14 +1482,13 @@ async function handleFormula(f){
         if(dist<bestDist){bestDist=dist;targetExp=e;}
       }
     } else {
-      // Month only: show term structure — same strike across all month expirations
+      // Month only: show term structure
       const monthExps=allExps.filter(e=>e.startsWith(f.expirationPrefix));
       if(monthExps.length===0){
         setStatus('No '+f.monthName+' '+f.year+' expirations found','error');
         document.getElementById('fetchBtn').disabled=false;return;
       }
-      setStatus(`Fetching ${f.strike}${f.type==='call'?'C':'P'} across ${monthExps.length} ${f.monthName} expirations...`,'');
-      // Fetch all month expirations in parallel
+      setStatus(`Fetching ${f.strike}${typeLabel} across ${monthExps.length} ${f.monthName} expirations...`,'');
       const chainPromises=monthExps.map(exp=>
         apiFetch('/api/tradier/chain?symbol='+encodeURIComponent(f.ticker)+'&expiration='+exp)
           .then(r=>({exp,data:r})).catch(()=>({exp,data:null}))
@@ -1494,12 +1502,10 @@ async function handleFormula(f){
         if(match)termRows.push({exp,...match});
       }
       if(termRows.length===0){
-        setStatus('No '+f.strike+(f.type==='call'?'C':'P')+' found in '+f.monthName+' expirations','error');
+        setStatus('No '+f.strike+typeLabel+' found in '+f.monthName+' expirations','error');
         document.getElementById('fetchBtn').disabled=false;return;
       }
-      // Render term structure table
-      const typeLabel=f.type==='call'?'CALL':'PUT';
-      const hdr=`<span style="font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:0.1em;color:var(--text-dim);">${f.ticker} ${f.strike} ${typeLabel} — ${f.monthName.toUpperCase()} ${f.year} TERM STRUCTURE</span>`;
+      const hdr=`<span style="font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:0.1em;color:var(--text-dim);">${f.ticker} ${f.strike} ${f.type.toUpperCase()} — ${f.monthName.toUpperCase()} ${f.year} TERM STRUCTURE</span>`;
       const thead='<tr><th>Expiry</th><th>DTE</th><th>Bid</th><th>Ask</th><th>Mid</th><th>IV</th><th>Vol</th><th>OI</th><th></th></tr>';
       const tbody=termRows.map(r=>{
         const dte=Math.max(Math.round((new Date(r.exp+'T16:00:00')-new Date())/(1000*60*60*24)),1);
@@ -1521,13 +1527,12 @@ async function handleFormula(f){
       setSingleType(f.type);
       update();
       fetchSupplemental(f.ticker);
-      setStatus(`${termRows.length} ${f.monthName} expirations for ${f.strike}${f.type==='call'?'C':'P'}`,'success');
+      setStatus(`${termRows.length} ${f.monthName} expirations for ${f.strike}${typeLabel}`,'success');
       document.getElementById('fetchBtn').disabled=false;
       return;
     }
 
-    // === Full-date path (specific expiry) ===
-    // 3. Fetch chain for best expiry
+    // === Full-date path ===
     const chainResp=await apiFetch('/api/tradier/chain?symbol='+encodeURIComponent(f.ticker)+'&expiration='+targetExp);
     if(!chainResp||!chainResp.contracts||chainResp.contracts.length===0){
       setStatus('No contracts found for '+targetExp,'error');
@@ -1536,7 +1541,38 @@ async function handleFormula(f){
     chainData=chainResp.contracts;
     if(chainResp.underlying_price)liveStockPrice=chainResp.underlying_price;
 
-    // 4. Find matching strike
+    const exp=targetExp;
+    const dte=Math.max(Math.round((new Date(exp+'T16:00:00')-new Date())/(1000*60*60*24)),1);
+
+    // === Spread / multi-strike path ===
+    if(f.isSpread&&f.strikes.length>=2){
+      if(appMode!=='multi')setMode('multi');
+      legs=[];legIdCounter=0;
+      const sortedStrikes=[...f.strikes].sort((a,b)=>a-b);
+      for(let i=0;i<sortedStrikes.length;i++){
+        const k=sortedStrikes[i];
+        const contract=chainData.find(c=>c.option_type===f.type&&Math.abs(c.strike-k)<0.5);
+        const nearestContract=contract||chainData.filter(c=>c.option_type===f.type).sort((a,b)=>Math.abs(a.strike-k)-Math.abs(b.strike-k))[0];
+        const iv=nearestContract?.implied_volatility>0?+(nearestContract.implied_volatility*100).toFixed(1):25;
+        const dir=i===0?'long':'short';
+        addLeg({type:f.type,dir,K:nearestContract?.strike||k,IV:iv,T:dte,qty:1});
+      }
+
+      const exps=[...new Set(chainData.map(c=>c.expiration_date))].sort();
+      populateExpiryDropdown(exps);
+      document.getElementById('expirySelect').value=exp;
+      chainShowPuts=(f.type==='put');
+      document.getElementById('chainTypeBtn').textContent=chainShowPuts?'Show calls':'Show puts';
+      renderChain();
+      document.getElementById('chainWrap').classList.remove('hidden');
+      update();
+      fetchSupplemental(f.ticker);
+      setStatus(`${spreadLabel}: ${sortedStrikes.join('/')} ${f.ticker} ${exp} loaded`,'success');
+      document.getElementById('fetchBtn').disabled=false;
+      return;
+    }
+
+    // === Single strike path ===
     let matches=chainData.filter(c=>c.option_type===f.type&&Math.abs(c.strike-f.strike)<0.5);
     if(matches.length===0){
       const sameType=chainData.filter(c=>c.option_type===f.type);
@@ -1554,9 +1590,6 @@ async function handleFormula(f){
     }
 
     const match=matches[0];
-    const exp=targetExp;
-    const dte=Math.max(Math.round((new Date(exp+'T16:00:00')-new Date())/(1000*60*60*24)),1);
-
     const exps=[...new Set(chainData.map(c=>c.expiration_date))].sort();
     populateExpiryDropdown(exps);
     document.getElementById('expirySelect').value=exp;
@@ -1570,6 +1603,8 @@ async function handleFormula(f){
       document.getElementById('sl-T').value=dte;
       setSingleType(f.type);
       loadedOption={strike:match.strike,iv:match.implied_volatility>0?+(match.implied_volatility*100).toFixed(1):25,type:f.type,dte,spot:price};
+    } else {
+      addLeg({type:f.type,dir:'long',K:match.strike,IV:match.implied_volatility>0?+(match.implied_volatility*100).toFixed(1):25,T:dte,qty:1});
     }
 
     renderChain();
@@ -1582,9 +1617,7 @@ async function handleFormula(f){
 
     update();
     fetchSupplemental(f.ticker);
-
-    const typeLabel=f.type==='call'?'CALL':'PUT';
-    setStatus(`${f.ticker} ${exp} ${match.strike} ${typeLabel} loaded — IV ${match.implied_volatility>0?(match.implied_volatility*100).toFixed(1)+'%':'N/A'}`,'success');
+    setStatus(`${f.ticker} ${exp} ${match.strike} ${f.type.toUpperCase()} loaded — IV ${match.implied_volatility>0?(match.implied_volatility*100).toFixed(1)+'%':'N/A'}`,'success');
   }catch(e){setStatus('Error: '+e.message,'error');}
   document.getElementById('fetchBtn').disabled=false;
 }
@@ -1595,7 +1628,7 @@ function populateExpiryDropdown(dates){
     const dte=Math.round((new Date(d+'T16:00:00')-new Date())/(1000*60*60*24));
     return`<option value="${d}">${d} (${dte}d)</option>`;
   }).join('');
-  sel.style.display='';
+  document.getElementById('expiryRow').style.display='';
 }
 
 async function fetchQuote(){
@@ -1652,7 +1685,7 @@ async function fetchQuote(){
         const dte=Math.round((new Date(d+'T16:00:00')-new Date())/(1000*60*60*24));
         return`<option value="${d}">${d} (${dte}d)</option>`;
       }).join('');
-      sel.style.display='';
+      document.getElementById('expiryRow').style.display='';
       setStatus(ticker+' loaded — pick an expiry','success');
     }
   }catch(e){setStatus('Network error: '+e.message,'error');}
