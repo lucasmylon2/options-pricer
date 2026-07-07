@@ -197,7 +197,7 @@ input[type=range]:hover::-webkit-slider-thumb{background:var(--blue);}
 .chain-table tr:hover td{background:rgba(37,99,235,0.04);}
 .chain-table tr.selected td{background:rgba(37,99,235,0.12);color:var(--blue);font-weight:600;border-left:2px solid var(--blue);}
 .chain-table tr.selected td:first-child{border-left:2px solid var(--blue);}
-.chain-scroll{max-height:180px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--border-hi) transparent;margin-top:4px;}
+.chain-scroll{max-height:240px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--border-hi) transparent;margin-top:4px;}
 .chain-scroll::-webkit-scrollbar{width:3px;}
 .chain-scroll::-webkit-scrollbar-thumb{background:var(--border-hi);}
 .mkt-toggle{font-size:10px;color:var(--blue);cursor:pointer;background:none;border:none;font-family:var(--sans);padding:0;}
@@ -1470,10 +1470,26 @@ async function handleFormula(f){
         if(dist<bestDist){bestDist=dist;targetExp=e;}
       }
     } else {
-      // Month only: find first expiry in that month
+      // Month only: find standard monthly expiry (3rd Friday) or nearest to it
       const monthExps=allExps.filter(e=>e.startsWith(f.expirationPrefix));
-      if(monthExps.length>0)targetExp=monthExps[0];
-      else targetExp=allExps[0];
+      if(monthExps.length>0){
+        // Find 3rd Friday of the month
+        const y=f.year, m=parseInt(f.month)-1;
+        const first=new Date(y,m,1);
+        let fri1Day=((5-first.getDay()+7)%7)+1;
+        const thirdFri=new Date(y,m,fri1Day+14);
+        const tfStr=thirdFri.toISOString().slice(0,10);
+        // Pick expiry nearest to 3rd Friday
+        let bestDist=Infinity;
+        for(const e of monthExps){
+          const dist=Math.abs(new Date(e+'T12:00:00')-thirdFri);
+          if(dist<bestDist){bestDist=dist;targetExp=e;}
+        }
+        // Filter dropdown to only this month's expirations
+        populateExpiryDropdown(monthExps);
+      } else {
+        targetExp=allExps[0];
+      }
     }
 
     // 3. Fetch chain for best expiry
@@ -1514,21 +1530,27 @@ async function handleFormula(f){
     populateExpiryDropdown(exps);
     document.getElementById('expirySelect').value=exp;
 
-    // Show chain
-    renderChain();
-    document.getElementById('chainWrap').classList.remove('hidden');
+    // Sync chain display type with formula type and show chain
+    chainShowPuts=(f.type==='put');
+    document.getElementById('chainTypeBtn').textContent=chainShowPuts?'Show calls':'Show puts';
 
     // Load the option
     if(appMode==='single'){
       document.getElementById('sl-K').value=match.strike;
       if(match.implied_volatility>0)document.getElementById('sl-IV').value=Math.round(match.implied_volatility*100);
       document.getElementById('sl-T').value=dte;
-      const slK=document.getElementById('sl-K');
-      if(slK){slK.value=match.strike;}
       setSingleType(f.type);
       loadedOption={strike:match.strike,iv:match.implied_volatility>0?Math.round(match.implied_volatility*100):25,type:f.type,dte,spot:Math.round(price)};
-      renderChain();
     }
+
+    renderChain();
+    document.getElementById('chainWrap').classList.remove('hidden');
+    // Scroll chain to selected row after layout settles
+    setTimeout(()=>{
+      const sc=document.getElementById('chainScroll');
+      const selRow=document.querySelector('.chain-table tr.selected');
+      if(sc&&selRow) sc.scrollTop=Math.max(0,selRow.offsetTop-sc.clientHeight/2);
+    },200);
 
     update();
     fetchSupplemental(f.ticker);
