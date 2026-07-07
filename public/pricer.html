@@ -273,7 +273,7 @@ input[type=range]:hover::-webkit-slider-thumb{background:var(--blue);}
     <div class="mkt-section">
       <div class="p-heading">MARKET DATA</div>
       <div class="mkt-row">
-        <input class="ticker-input" id="tickerInput" type="text" placeholder="AAPL or AAPL 26jul20 315c" onkeydown="if(event.key==='Enter')fetchQuote()">
+        <input class="ticker-input" id="tickerInput" type="text" placeholder="AAPL 26JUL17 315C" onkeydown="if(event.key==='Enter')fetchQuote()">
         <button class="fetch-btn" id="fetchBtn" onclick="fetchQuote()">FETCH</button>
         <select class="mkt-select" id="expirySelect" style="display:none;" onchange="fetchChain()">
           <option value="">Expiry...</option>
