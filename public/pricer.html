@@ -2173,7 +2173,7 @@ update();
 
 // Double-click on charts to reset spot to live price
 document.querySelector('.panel-center').addEventListener('dblclick',function(e){
-  if(!e.target.closest('.main-chart-wrap,.mini-chart-card'))return;
+  if(!e.target.closest('.main-chart-wrap,.mini-chart-card,.overlay-card'))return;
   if(liveStockPrice>0){
     const sl=document.getElementById('sl-S');
     sl.value=liveStockPrice;
@@ -2183,27 +2183,13 @@ document.querySelector('.panel-center').addEventListener('dblclick',function(e){
   }
 });
 
-// Scroll on charts to move spot price
-document.querySelector('.panel-center').addEventListener('wheel',function(e){
-  const target=e.target.closest('.main-chart-wrap,.mini-chart-card');
-  if(!target)return;
-  e.preventDefault();
-  const sl=document.getElementById('sl-S');
-  const step=parseFloat(sl.step)||1;
-  const delta=e.deltaY>0?-step:step;
-  const newVal=Math.min(parseFloat(sl.max),Math.max(parseFloat(sl.min),parseFloat(sl.value)+delta));
-  sl.value=newVal;
-  spotFollowsLive=false;
-  updateSpotTrackBadge();
-  update();
-},{passive:false});
 
 // Click-drag on charts to move spot price
 (function(){
   const panel=document.querySelector('.panel-center');
   let dragging=false,startX=0,startVal=0;
   panel.addEventListener('mousedown',function(e){
-    if(!e.target.closest('.main-chart-wrap,.mini-chart-card'))return;
+    if(!e.target.closest('.main-chart-wrap,.mini-chart-card,.overlay-card'))return;
     dragging=true;startX=e.clientX;startVal=parseFloat(document.getElementById('sl-S').value);
     e.preventDefault();
     panel.style.cursor='ew-resize';
