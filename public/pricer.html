@@ -128,6 +128,15 @@ input[type=range]:hover::-webkit-slider-thumb{background:var(--blue);}
 .mini-chart-desc{font-size:10px;color:var(--text-dim);margin-bottom:5px;}
 .mini-chart-wrap{position:relative;height:200px;transition:height 0.2s ease;}
 
+.overlay-section{padding:10px 12px 12px;}
+.overlay-header{display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap;}
+.overlay-toggles{display:flex;gap:4px;flex-wrap:wrap;}
+.ov-btn{font-family:var(--mono);font-size:9px;font-weight:600;padding:3px 8px;border:1px solid var(--border);border-radius:3px;background:transparent;color:var(--text-dim);cursor:pointer;transition:all 0.15s;}
+.ov-btn:hover{border-color:var(--ov-color,var(--blue));color:var(--ov-color,var(--blue));}
+.ov-btn.active{background:var(--ov-color,var(--blue));border-color:var(--ov-color,var(--blue));color:white;}
+.overlay-chart-wrap{position:relative;height:280px;display:none;}
+.overlay-chart-wrap.visible{display:block;}
+
 /* right panel */
 .panel-right{border-left:1px solid var(--border);overflow-y:auto;background:var(--bg1);scrollbar-width:thin;scrollbar-color:var(--border-hi) transparent;}
 .panel-right::-webkit-scrollbar{width:3px;}
@@ -485,6 +494,23 @@ input[type=range]:hover::-webkit-slider-thumb{background:var(--blue);}
           <div class="mini-chart-desc">vs spot price</div>
           <div class="mini-chart-wrap"><canvas id="mc-vanna"></canvas></div>
         </div>
+      </div>
+      <!-- Overlay chart -->
+      <div class="overlay-section">
+        <div class="overlay-header">
+          <span style="font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:0.1em;color:var(--text-dim);">OVERLAY</span>
+          <div class="overlay-toggles" id="overlayToggles">
+            <button class="ov-btn" data-ov="payoff" style="--ov-color:#2563EB;">Payoff</button>
+            <button class="ov-btn" data-ov="pnl" style="--ov-color:#1d4ed8;">P&L</button>
+            <button class="ov-btn" data-ov="delta" style="--ov-color:#2563EB;">Delta</button>
+            <button class="ov-btn" data-ov="gamma" style="--ov-color:#7C3AED;">Gamma</button>
+            <button class="ov-btn" data-ov="vega" style="--ov-color:#D97706;">Vega</button>
+            <button class="ov-btn" data-ov="theta" style="--ov-color:#DC2626;">Theta</button>
+            <button class="ov-btn" data-ov="rho" style="--ov-color:#059669;">Rho</button>
+            <button class="ov-btn" data-ov="vanna" style="--ov-color:#0891B2;">Vanna</button>
+          </div>
+        </div>
+        <div class="overlay-chart-wrap"><canvas id="overlayChart"></canvas></div>
       </div>
     </div>
   </div>
@@ -1975,6 +2001,103 @@ miniCharts.vega=makeMiniChart('mc-vega','#D97706');
 miniCharts.theta=makeMiniChart('mc-theta','#DC2626');
 miniCharts.rho=makeMiniChart('mc-rho','#059669');
 miniCharts.vanna=makeMiniChart('mc-vanna','#0891B2');
+
+// Overlay chart
+const ovColors={payoff:'#2563EB',pnl:'#1d4ed8',delta:'#2563EB',gamma:'#7C3AED',vega:'#D97706',theta:'#DC2626',rho:'#059669',vanna:'#0891B2'};
+const ovDash={payoff:[],pnl:[6,4],delta:[],gamma:[],vega:[],theta:[],rho:[],vanna:[]};
+let overlayChart=null;
+let overlayActive=new Set();
+
+document.getElementById('overlayToggles').addEventListener('click',function(e){
+  const btn=e.target.closest('.ov-btn');
+  if(!btn)return;
+  const key=btn.dataset.ov;
+  if(overlayActive.has(key)){overlayActive.delete(key);btn.classList.remove('active');}
+  else{overlayActive.add(key);btn.classList.add('active');}
+  const wrap=document.querySelector('.overlay-chart-wrap');
+  if(overlayActive.size>0){wrap.classList.add('visible');updateOverlayChart();}
+  else{wrap.classList.remove('visible');}
+});
+
+function updateOverlayChart(){
+  if(overlayActive.size===0)return;
+  const S=getS(),r=getR(),q=getQ();
+  const spots=spotRange(S,120);
+  const labels=spots.map(s=>'$'+s.toFixed(0));
+  const datasets=[];
+  const hasDollar=overlayActive.has('payoff')||overlayActive.has('pnl');
+  const hasGreek=[...overlayActive].some(k=>!['payoff','pnl'].includes(k));
+
+  overlayActive.forEach(key=>{
+    const data=[];
+    if(appMode==='single'){
+      const K=parseFloat(document.getElementById('sl-K').value);
+      const IV=parseFloat(document.getElementById('sl-IV').value)/100;
+      const T=parseFloat(document.getElementById('sl-T').value)/365;
+      const premium=bs(S,K,T,r,q,IV,singleType).price;
+      spots.forEach(sp=>{
+        const res=bs(sp,K,T,r,q,IV,singleType);
+        if(key==='payoff'){const pf=singleType==='call'?Math.max(sp-K,0):Math.max(K-sp,0);data.push(+pf.toFixed(4));}
+        else if(key==='pnl'){const pf=singleType==='call'?Math.max(sp-K,0):Math.max(K-sp,0);data.push(+(pf-premium).toFixed(4));}
+        else data.push(+res[key]?.toFixed(5)||0);
+      });
+    } else {
+      const entry=multiPayoff(S,S,r,q);
+      spots.forEach(sp=>{
+        if(key==='payoff'||key==='pnl'){
+          const pf=multiPayoff(sp,S,r,q);
+          data.push(key==='payoff'?+(pf+entry).toFixed(4):+pf.toFixed(4));
+        } else {
+          const ng=computeNetGreekAtSpot(sp,r,q);
+          data.push(+ng[key]?.toFixed(5)||0);
+        }
+      });
+    }
+    const useRight=!['payoff','pnl'].includes(key)&&hasDollar;
+    datasets.push({
+      label:key.charAt(0).toUpperCase()+key.slice(1),
+      data,
+      borderColor:ovColors[key],
+      borderWidth:2,
+      borderDash:ovDash[key],
+      tension:0.3,
+      pointRadius:0,
+      fill:false,
+      yAxisID:useRight?'y1':'y'
+    });
+  });
+
+  const scales={
+    x:{display:true,ticks:{font:{size:9,family:'JetBrains Mono'},color:'#9CA3AF',maxTicksLimit:8},grid:{display:false}},
+    y:{display:true,position:'left',ticks:{font:{size:9,family:'JetBrains Mono'},color:'#9CA3AF'},grid:{color:'rgba(0,0,0,0.04)'}}
+  };
+  if(hasDollar&&hasGreek){
+    scales.y1={display:true,position:'right',ticks:{font:{size:9,family:'JetBrains Mono'},color:'#9CA3AF'},grid:{drawOnChartArea:false}};
+  }
+
+  if(overlayChart){
+    overlayChart.data.labels=labels;
+    overlayChart.data.datasets=datasets;
+    overlayChart.options.scales=scales;
+    overlayChart.update('none');
+  } else {
+    const ctx=document.getElementById('overlayChart').getContext('2d');
+    overlayChart=new Chart(ctx,{type:'line',data:{labels,datasets},options:{
+      responsive:true,maintainAspectRatio:false,resizeDelay:100,animation:NO_ANIM,
+      transitions:{resize:{animation:RESIZE_ANIM}},
+      interaction:{mode:'index',intersect:false},
+      plugins:{legend:{display:true,position:'top',labels:{font:{size:10,family:'JetBrains Mono'},boxWidth:12,padding:8,usePointStyle:true}},
+        tooltip:{backgroundColor:'#fff',borderColor:'rgba(0,0,0,0.12)',borderWidth:1,titleColor:'#4B5368',bodyColor:'#111318',padding:8,titleFont:{family:'JetBrains Mono',size:10},bodyFont:{family:'JetBrains Mono',size:11},
+          callbacks:{title:c=>'Spot: '+c[0].label,label:c=>' '+c.dataset.label+': '+c.parsed.y.toFixed(4)}},
+        currentPriceLine:{show:true,showLabel:true}},
+      scales
+    }});
+  }
+}
+
+// Hook overlay update into main update cycle
+const _origDrawMini=drawMiniCharts;
+drawMiniCharts=function(S,r,q){_origDrawMini(S,r,q);if(overlayActive.size>0)updateOverlayChart();};
 
 ['sl-S','sl-K','sl-IV','sl-T','sl-r','sl-q','sl-rm','sl-qm'].forEach(id=>{const el=document.getElementById(id);if(el)el.addEventListener('input',update);});
 
