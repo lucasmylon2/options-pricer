@@ -272,6 +272,7 @@ input[type=range]:hover::-webkit-slider-thumb{background:var(--blue);}
   <div class="tape-item"><span class="tape-label">Theta</span><span class="tape-val" id="tape-theta">--</span></div>
   <div class="tape-item"><span class="tape-label">Rho</span><span class="tape-val" id="tape-rho">--</span></div>
   <div class="tape-item"><span class="tape-label">Vanna</span><span class="tape-val" id="tape-vanna">--</span></div>
+  <div class="tape-item"><span class="tape-label">Volga</span><span class="tape-val" id="tape-volga">--</span></div>
   <div class="tape-aux">
     <span class="aux-item" id="aux-d1-wrap">d1<span id="tape-d1">--</span></span>
     <span class="aux-item" id="aux-d2-wrap">d2<span id="tape-d2">--</span></span>
@@ -494,6 +495,11 @@ input[type=range]:hover::-webkit-slider-thumb{background:var(--blue);}
           <div class="mini-chart-desc">vs spot price</div>
           <div class="mini-chart-wrap"><canvas id="mc-vanna"></canvas></div>
         </div>
+        <div class="mini-chart-card">
+          <div class="mini-chart-header"><span class="mini-chart-name">Volga</span><span class="mini-chart-val" id="mg-volga" style="color:#E11D48;">--</span></div>
+          <div class="mini-chart-desc">vs spot price</div>
+          <div class="mini-chart-wrap"><canvas id="mc-volga"></canvas></div>
+        </div>
       </div>
       <!-- Overlay chart -->
       <div class="overlay-card">
@@ -508,6 +514,7 @@ input[type=range]:hover::-webkit-slider-thumb{background:var(--blue);}
             <button class="ov-btn" data-ov="theta" style="--ov-color:#DC2626;">Theta</button>
             <button class="ov-btn" data-ov="rho" style="--ov-color:#059669;">Rho</button>
             <button class="ov-btn" data-ov="vanna" style="--ov-color:#0891B2;">Vanna</button>
+            <button class="ov-btn" data-ov="volga" style="--ov-color:#E11D48;">Volga</button>
           </div>
         </div>
         <div class="overlay-chart-wrap"><canvas id="overlayChart"></canvas></div>
@@ -548,6 +555,11 @@ input[type=range]:hover::-webkit-slider-thumb{background:var(--blue);}
       <div class="greek-bar"><div class="greek-fill" id="bar-vanna" style="background:#0891B2;"></div></div>
       <div class="greek-desc">Delta sensitivity to IV</div>
     </div>
+    <div class="greek-row">
+      <div class="greek-top"><span><span class="greek-name">Volga</span><span class="greek-sym">d²V/dσ²</span></span><span class="greek-val" id="g-volga">--</span></div>
+      <div class="greek-bar"><div class="greek-fill" id="bar-volga" style="background:#E11D48;"></div></div>
+      <div class="greek-desc">Vega sensitivity to IV</div>
+    </div>
 
     <div class="r-heading" style="padding-top:10px;" id="legSummaryHeading">LEG PRICES</div>
     <div id="legSummaryRows"></div>
@@ -571,7 +583,7 @@ function normCDF(x){return 0.5*(1+erf(x/Math.sqrt(2)));}
 function normPDF(x){return Math.exp(-0.5*x*x)/Math.sqrt(2*Math.PI);}
 
 function bs(S,K,T,r,q,sigma,type){
-  if(T<=0||sigma<=0){const iv=type==='call'?Math.max(S-K,0):Math.max(K-S,0);return{price:iv,delta:type==='call'?(S>K?1:0):(S<K?-1:0),gamma:0,vega:0,theta:0,rho:0,vanna:0,d1:0,d2:0};}
+  if(T<=0||sigma<=0){const iv=type==='call'?Math.max(S-K,0):Math.max(K-S,0);return{price:iv,delta:type==='call'?(S>K?1:0):(S<K?-1:0),gamma:0,vega:0,theta:0,rho:0,vanna:0,volga:0,d1:0,d2:0};}
   const sqrtT=Math.sqrt(T);
   const d1=(Math.log(S/K)+(r-q+0.5*sigma*sigma)*T)/(sigma*sqrtT);
   const d2=d1-sigma*sqrtT;
@@ -585,7 +597,8 @@ function bs(S,K,T,r,q,sigma,type){
   const putT=(-S*eqT*normPDF(d1)*sigma/(2*sqrtT)+r*K*erT*normCDF(-d2)-q*S*eqT*normCDF(-d1))/365;
   const theta=type==='call'?callT:putT;
   const vanna=(vega*100/S)*(1-d1/(sigma*sqrtT));
-  return{price,delta,gamma,vega,theta,rho,vanna,d1,d2};
+  const volga=vega*d1*d2/sigma;
+  return{price,delta,gamma,vega,theta,rho,vanna,volga,d1,d2};
 }
 
 /* ── State ───────────────────────────────── */
@@ -881,7 +894,7 @@ function loadStrategy(name){
 /* ── Greeks sum across legs ──────────────── */
 function computeNetGreeks(S,r,q){
   syncLegsFromDOM();
-  let net={price:0,delta:0,gamma:0,vega:0,theta:0,rho:0,vanna:0};
+  let net={price:0,delta:0,gamma:0,vega:0,theta:0,rho:0,vanna:0,volga:0};
   legs.forEach(leg=>{
     const sign=leg.dir==='long'?1:-1;
     const qty=parseFloat(getLegVal(leg.id,'qty'))||1;
@@ -897,6 +910,7 @@ function computeNetGreeks(S,r,q){
     net.theta+=sign*qty*res.theta;
     net.rho+=sign*qty*res.rho;
     net.vanna+=sign*qty*res.vanna;
+    net.volga+=sign*qty*res.volga;
   });
   return net;
 }
@@ -1113,15 +1127,15 @@ function updateMini(chart,labels,data){chart.data.labels=labels;chart.data.datas
 function drawMiniCharts(S,r,q){
   const spots=spotRange(S,80);
   const labels=spots.map(s=>s.toFixed(1));
-  const dD=[],gD=[],vD=[],rD=[],vnD=[];
+  const dD=[],gD=[],vD=[],rD=[],vnD=[],vlD=[];
 
   if(appMode==='single'){
     const K=parseFloat(document.getElementById('sl-K').value);
     const IV=parseFloat(document.getElementById('sl-IV').value)/100;
     const T=parseFloat(document.getElementById('sl-T').value)/365;
-    spots.forEach(sp=>{const res=bs(sp,K,T,r,q,IV,singleType);dD.push(+res.delta.toFixed(5));gD.push(+res.gamma.toFixed(6));vD.push(+res.vega.toFixed(5));rD.push(+res.rho.toFixed(5));vnD.push(+res.vanna.toFixed(5));});
+    spots.forEach(sp=>{const res=bs(sp,K,T,r,q,IV,singleType);dD.push(+res.delta.toFixed(5));gD.push(+res.gamma.toFixed(6));vD.push(+res.vega.toFixed(5));rD.push(+res.rho.toFixed(5));vnD.push(+res.vanna.toFixed(5));vlD.push(+res.volga.toFixed(5));});
   } else {
-    spots.forEach(sp=>{const ng=computeNetGreekAtSpot(sp,r,q);dD.push(+ng.delta.toFixed(5));gD.push(+ng.gamma.toFixed(6));vD.push(+ng.vega.toFixed(5));rD.push(+ng.rho.toFixed(5));vnD.push(+ng.vanna.toFixed(5));});
+    spots.forEach(sp=>{const ng=computeNetGreekAtSpot(sp,r,q);dD.push(+ng.delta.toFixed(5));gD.push(+ng.gamma.toFixed(6));vD.push(+ng.vega.toFixed(5));rD.push(+ng.rho.toFixed(5));vnD.push(+ng.vanna.toFixed(5));vlD.push(+ng.volga.toFixed(5));});
   }
 
   const tSteps=80,tL=[],tD=[];
@@ -1156,10 +1170,11 @@ function drawMiniCharts(S,r,q){
   updateMini(miniCharts.theta,tL,tD);
   updateMini(miniCharts.rho,labels,rD);
   updateMini(miniCharts.vanna,labels,vnD);
+  updateMini(miniCharts.volga,labels,vlD);
 }
 
 function computeNetGreekAtSpot(sp,r,q){
-  let res={delta:0,gamma:0,vega:0,theta:0,rho:0,vanna:0};
+  let res={delta:0,gamma:0,vega:0,theta:0,rho:0,vanna:0,volga:0};
   legs.forEach(leg=>{
     if(leg.type==='stock'){const sign=leg.dir==='long'?1:-1;const qty=parseFloat(getLegVal(leg.id,'qty'))||1;res.delta+=sign*qty;return;}
     const sign=leg.dir==='long'?1:-1;
@@ -1168,7 +1183,7 @@ function computeNetGreekAtSpot(sp,r,q){
     const IV=parseFloat(getLegVal(leg.id,'IV'))||25;
     const T=(parseFloat(getLegVal(leg.id,'T'))||30)/365;
     const b=bs(sp,K,T,r,q,IV/100,leg.type);
-    res.delta+=sign*qty*b.delta;res.gamma+=sign*qty*b.gamma;res.vega+=sign*qty*b.vega;res.theta+=sign*qty*b.theta;res.rho+=sign*qty*b.rho;res.vanna+=sign*qty*b.vanna;
+    res.delta+=sign*qty*b.delta;res.gamma+=sign*qty*b.gamma;res.vega+=sign*qty*b.vega;res.theta+=sign*qty*b.theta;res.rho+=sign*qty*b.rho;res.vanna+=sign*qty*b.vanna;res.volga+=sign*qty*b.volga;
   });
   return res;
 }
@@ -1245,7 +1260,7 @@ function update(){
   }
 
   // tape
-  ['delta','gamma','vega','theta','rho','vanna'].forEach(g=>{const el=document.getElementById('tape-'+g);if(el)el.textContent=netGreeks[g].toFixed(4);});
+  ['delta','gamma','vega','theta','rho','vanna','volga'].forEach(g=>{const el=document.getElementById('tape-'+g);if(el)el.textContent=netGreeks[g].toFixed(4);});
 
   // right panel greeks
   const colorOf=v=>v>0?'#059669':'#DC2626';
@@ -1256,12 +1271,14 @@ function update(){
   setG('g-theta',netGreeks.theta,'#DC2626');
   setG('g-rho',netGreeks.rho,colorOf(netGreeks.rho));
   setG('g-vanna',netGreeks.vanna,'#0891B2');
+  setG('g-volga',netGreeks.volga,'#E11D48');
   setBar('bar-delta',Math.abs(netGreeks.delta),1);
   setBar('bar-gamma',netGreeks.gamma,0.05);
   setBar('bar-vega',netGreeks.vega,0.5);
   setBar('bar-theta',Math.abs(netGreeks.theta),0.1);
   setBar('bar-rho',Math.abs(netGreeks.rho),0.1);
   setBar('bar-vanna',Math.abs(netGreeks.vanna),0.05);
+  setBar('bar-volga',Math.abs(netGreeks.volga),0.05);
 
   // mini chart vals
   document.getElementById('mg-delta').textContent=netGreeks.delta.toFixed(4);
@@ -1270,6 +1287,7 @@ function update(){
   document.getElementById('mg-theta').textContent=netGreeks.theta.toFixed(4);
   document.getElementById('mg-rho').textContent=netGreeks.rho.toFixed(4);
   document.getElementById('mg-vanna').textContent=netGreeks.vanna.toFixed(5);
+  document.getElementById('mg-volga').textContent=netGreeks.volga.toFixed(5);
 
   // shocks
   const shockFn=(dS,dIV,dT,dR,dQ)=>{
@@ -2001,10 +2019,11 @@ miniCharts.vega=makeMiniChart('mc-vega','#D97706');
 miniCharts.theta=makeMiniChart('mc-theta','#DC2626');
 miniCharts.rho=makeMiniChart('mc-rho','#059669');
 miniCharts.vanna=makeMiniChart('mc-vanna','#0891B2');
+miniCharts.volga=makeMiniChart('mc-volga','#E11D48');
 
 // Overlay chart
-const ovColors={payoff:'#2563EB',pnl:'#1d4ed8',delta:'#2563EB',gamma:'#7C3AED',vega:'#D97706',theta:'#DC2626',rho:'#059669',vanna:'#0891B2'};
-const ovDash={payoff:[],pnl:[6,4],delta:[],gamma:[],vega:[],theta:[],rho:[],vanna:[]};
+const ovColors={payoff:'#2563EB',pnl:'#1d4ed8',delta:'#2563EB',gamma:'#7C3AED',vega:'#D97706',theta:'#DC2626',rho:'#059669',vanna:'#0891B2',volga:'#E11D48'};
+const ovDash={payoff:[],pnl:[6,4],delta:[],gamma:[],vega:[],theta:[],rho:[],vanna:[],volga:[]};
 let overlayChart=null;
 let overlayActive=new Set();
 
