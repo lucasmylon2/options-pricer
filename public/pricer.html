@@ -2029,6 +2029,18 @@ function updateSpotTrackBadge(){
 rebuildTabs();
 update();
 
+// Double-click on charts to reset spot to live price
+document.querySelector('.panel-center').addEventListener('dblclick',function(e){
+  if(!e.target.closest('.main-chart-wrap,.mini-chart-card'))return;
+  if(liveStockPrice>0){
+    const sl=document.getElementById('sl-S');
+    sl.value=liveStockPrice;
+    spotFollowsLive=true;
+    updateSpotTrackBadge();
+    update();
+  }
+});
+
 // Scroll on charts to move spot price
 document.querySelector('.panel-center').addEventListener('wheel',function(e){
   const target=e.target.closest('.main-chart-wrap,.mini-chart-card');
