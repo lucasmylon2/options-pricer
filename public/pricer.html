@@ -18,7 +18,7 @@
   --mono:'JetBrains Mono',monospace;--sans:'Inter',sans-serif;
 }
 html,body{background:var(--bg);color:var(--text-primary);font-family:var(--sans);font-size:13px;line-height:1.5;height:100%;overflow:hidden;-webkit-font-smoothing:antialiased;}
-.shell{display:grid;grid-template-rows:auto 48px 34px 1fr;height:100vh;height:100dvh;}
+.shell{display:grid;grid-template-rows:48px 34px 1fr;height:100vh;height:100dvh;}
 
 /* topbar */
 .topbar{display:flex;align-items:center;justify-content:space-between;padding:0 16px;border-bottom:1px solid var(--border);background:var(--bg1);flex-shrink:0;}
@@ -254,14 +254,14 @@ input[type=range]:hover::-webkit-slider-thumb{background:var(--blue);}
 </style>
 </head>
 <body>
-<div class="shell">
-
 <!-- TOUR BANNER (first visit) -->
 <div class="tour-banner" id="tourBanner" style="display:none;">
   <span>Welcome to Options Pricer — a Black-Scholes pricing & visualization tool.</span>
   <button onclick="dismissBanner();startTour()">TAKE A TOUR</button>
   <button class="dismiss" onclick="dismissBanner()">DISMISS</button>
 </div>
+
+<div class="shell">
 
 <!-- TOPBAR -->
 <header class="topbar">
@@ -2255,7 +2255,7 @@ const tourSteps=[
   {el:'.greek-tape',title:'GREEK TAPE',body:'A quick-glance ticker tape showing all Greeks, d1, and d2 for the current position. Updates live as you move sliders.'},
   {el:'.panel-right',title:'NET GREEKS & SCENARIOS',body:'Full Greek breakdown with bar gauges, scenario shocks (what if spot ±5%, IV ±5 pts, etc.), and position decomposition for multi-leg strategies.'},
 ];
-let tourIdx=-1,tourHighlight=null,tourTooltip=null,tourOverlay=null;
+let tourIdx=-1,tourHighlight=null,tourTooltip=null,tourOverlay=null,tourTimer=null;
 
 function dismissBanner(){
   const b=document.getElementById('tourBanner');
@@ -2266,7 +2266,7 @@ function dismissBanner(){
 function startTour(){
   dismissBanner();
   tourIdx=0;
-  if(!tourOverlay){tourOverlay=document.createElement('div');tourOverlay.className='tour-overlay';document.body.appendChild(tourOverlay);}
+  if(!tourOverlay){tourOverlay=document.createElement('div');tourOverlay.className='tour-overlay';tourOverlay.addEventListener('click',endTour);document.body.appendChild(tourOverlay);tourOverlay.style.pointerEvents='auto';}
   if(!tourHighlight){tourHighlight=document.createElement('div');tourHighlight.className='tour-highlight';document.body.appendChild(tourHighlight);}
   if(!tourTooltip){tourTooltip=document.createElement('div');tourTooltip.className='tour-tooltip';document.body.appendChild(tourTooltip);}
   tourOverlay.style.display='block';
@@ -2274,6 +2274,7 @@ function startTour(){
 }
 
 function endTour(){
+  if(tourTimer){clearTimeout(tourTimer);tourTimer=null;}
   if(tourOverlay)tourOverlay.style.display='none';
   if(tourHighlight)tourHighlight.style.display='none';
   if(tourTooltip)tourTooltip.style.display='none';
@@ -2281,12 +2282,16 @@ function endTour(){
 }
 
 function showTourStep(){
+  if(tourTimer){clearTimeout(tourTimer);tourTimer=null;}
   if(tourIdx<0||tourIdx>=tourSteps.length){endTour();return;}
   const step=tourSteps[tourIdx];
   const target=document.querySelector(step.el);
   if(!target){tourIdx++;showTourStep();return;}
+  const scrollParent=target.closest('.panel-left,.panel-center,.panel-right');
+  if(scrollParent)scrollParent.scrollTop=0;
   target.scrollIntoView({behavior:'smooth',block:'nearest'});
-  setTimeout(()=>{
+  tourTimer=setTimeout(()=>{
+    if(tourIdx<0)return;
     const r=target.getBoundingClientRect();
     const pad=6;
     tourHighlight.style.display='block';
