@@ -128,7 +128,8 @@ input[type=range]:hover::-webkit-slider-thumb{background:var(--blue);}
 .mini-chart-desc{font-size:10px;color:var(--text-dim);margin-bottom:5px;}
 .mini-chart-wrap{position:relative;height:200px;transition:height 0.2s ease;}
 
-.overlay-section{padding:10px 12px 12px;}
+.overlay-section{padding:0 12px 12px;}
+.overlay-card{background:var(--bg1);border:1px solid var(--border);border-radius:6px;padding:10px 12px 8px;}
 .overlay-header{display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap;}
 .overlay-toggles{display:flex;gap:4px;flex-wrap:wrap;}
 .ov-btn{font-family:var(--mono);font-size:9px;font-weight:600;padding:3px 8px;border:1px solid var(--border);border-radius:3px;background:transparent;color:var(--text-dim);cursor:pointer;transition:all 0.15s;}
@@ -497,20 +498,22 @@ input[type=range]:hover::-webkit-slider-thumb{background:var(--blue);}
       </div>
       <!-- Overlay chart -->
       <div class="overlay-section">
-        <div class="overlay-header">
-          <span style="font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:0.1em;color:var(--text-dim);">OVERLAY</span>
-          <div class="overlay-toggles" id="overlayToggles">
-            <button class="ov-btn" data-ov="payoff" style="--ov-color:#2563EB;">Payoff</button>
-            <button class="ov-btn" data-ov="pnl" style="--ov-color:#1d4ed8;">P&L</button>
-            <button class="ov-btn" data-ov="delta" style="--ov-color:#2563EB;">Delta</button>
-            <button class="ov-btn" data-ov="gamma" style="--ov-color:#7C3AED;">Gamma</button>
-            <button class="ov-btn" data-ov="vega" style="--ov-color:#D97706;">Vega</button>
-            <button class="ov-btn" data-ov="theta" style="--ov-color:#DC2626;">Theta</button>
-            <button class="ov-btn" data-ov="rho" style="--ov-color:#059669;">Rho</button>
-            <button class="ov-btn" data-ov="vanna" style="--ov-color:#0891B2;">Vanna</button>
+        <div class="overlay-card">
+          <div class="overlay-header">
+            <span style="font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:0.1em;color:var(--text-dim);">OVERLAY</span>
+            <div class="overlay-toggles" id="overlayToggles">
+              <button class="ov-btn" data-ov="payoff" style="--ov-color:#2563EB;">Payoff</button>
+              <button class="ov-btn" data-ov="pnl" style="--ov-color:#1d4ed8;">P&L</button>
+              <button class="ov-btn" data-ov="delta" style="--ov-color:#2563EB;">Delta</button>
+              <button class="ov-btn" data-ov="gamma" style="--ov-color:#7C3AED;">Gamma</button>
+              <button class="ov-btn" data-ov="vega" style="--ov-color:#D97706;">Vega</button>
+              <button class="ov-btn" data-ov="theta" style="--ov-color:#DC2626;">Theta</button>
+              <button class="ov-btn" data-ov="rho" style="--ov-color:#059669;">Rho</button>
+              <button class="ov-btn" data-ov="vanna" style="--ov-color:#0891B2;">Vanna</button>
+            </div>
           </div>
+          <div class="overlay-chart-wrap"><canvas id="overlayChart"></canvas></div>
         </div>
-        <div class="overlay-chart-wrap"><canvas id="overlayChart"></canvas></div>
       </div>
     </div>
   </div>
