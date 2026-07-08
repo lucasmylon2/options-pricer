@@ -1517,7 +1517,7 @@ async function handleFormula(f){
       const tbody=termRows.map(r=>{
         const dte=Math.max(Math.round((new Date(r.exp+'T16:00:00')-new Date())/(1000*60*60*24)),1);
         const iv=r.implied_volatility;
-        return`<tr onclick="loadTermOption('${f.ticker}','${r.exp}',${r.strike},${iv||0.25},'${f.type}',${dte})" style="cursor:pointer;">
+        return`<tr onclick="loadTermOption('${f.ticker}','${r.exp}',${r.strike},${iv||0.25},'${f.type}',${dte},this)" style="cursor:pointer;">
           <td style="text-align:left">${r.exp}</td><td>${dte}d</td>
           <td>${(r.bid||0).toFixed(2)}</td><td>${(r.ask||0).toFixed(2)}</td>
           <td>${(r.midpoint||((r.bid||0)+(r.ask||0))/2).toFixed(2)}</td>
@@ -1789,14 +1789,19 @@ function restoreChainWrap(){
   }
 }
 
-function loadTermOption(ticker,exp,strike,iv,type,dte){
+function loadTermOption(ticker,exp,strike,iv,type,dte,rowEl){
   document.getElementById('expirySelect').value=exp;
+  // Highlight selected row
+  document.querySelectorAll('.chain-table tr.selected').forEach(r=>r.classList.remove('selected'));
+  if(rowEl)rowEl.classList.add('selected');
   if(appMode==='single'){
     document.getElementById('sl-K').value=strike;
     if(iv>0)document.getElementById('sl-IV').value=+(iv*100).toFixed(1);
     document.getElementById('sl-T').value=dte;
     setSingleType(type);
     loadedOption={strike,iv:iv>0?+(iv*100).toFixed(1):25,type,dte,spot:getS()};
+    // Fetch chain for this expiry to populate IV smile
+    fetchChainForSmile(ticker,exp);
     update();
     setStatus(`${ticker} ${exp} ${strike} ${type.toUpperCase()} loaded — IV ${iv>0?(iv*100).toFixed(1)+'%':'N/A'}`,'success');
   } else {
@@ -1804,6 +1809,17 @@ function loadTermOption(ticker,exp,strike,iv,type,dte){
     update();
     setStatus('Added '+type.toUpperCase()+' K='+strike+' '+exp+' leg','success');
   }
+}
+
+async function fetchChainForSmile(ticker,exp){
+  try{
+    const resp=await apiFetch('/api/tradier/chain?symbol='+encodeURIComponent(ticker)+'&expiration='+exp);
+    if(resp&&resp.contracts&&resp.contracts.length>0){
+      chainData=resp.contracts;
+      if(resp.underlying_price)liveStockPrice=resp.underlying_price;
+      update();
+    }
+  }catch(e){}
 }
 
 /* ── Yahoo supplemental data ────────────── */
