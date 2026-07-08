@@ -279,7 +279,7 @@ input[type=range]:hover::-webkit-slider-thumb{background:var(--blue);}
     <div class="mkt-section">
       <div class="p-heading">MARKET DATA</div>
       <div class="mkt-row">
-        <input class="ticker-input" id="tickerInput" type="text" placeholder="aapl 26jul17 300 c" onkeydown="if(event.key==='Enter')fetchQuote()">
+        <input class="ticker-input" id="tickerInput" type="text" placeholder="aapl 26jul17 300 c" onkeydown="if(event.key==='Enter')fetchQuote()" onfocus="this._prev=this.value;this.value=''" onblur="if(!this.value)this.value=this._prev||''">
         <button class="fetch-btn" id="fetchBtn" onclick="fetchQuote()">FETCH</button>
         <span class="info-icon">?<div class="info-tooltip"><b>Search formats</b><br><br><code>AAPL</code> — ticker only, browse chain<br><br><code>aapl 26jul17 300 c</code> — single call<br><code>aapl 26jul17 300 p</code> — single put<br><br><code>aapl 26jul 300 c</code> — no day: shows term structure across all July expirations<br><br><code>aapl 26jul17 300 320 cs</code> — call spread (long 300c, short 320c)<br><code>aapl 26jul17 300 280 ps</code> — put spread<br><br><b>Format:</b> ticker &nbsp;expiry &nbsp;strike(s) &nbsp;type<br><b>Types:</b> <code>c</code> call · <code>p</code> put · <code>cs</code> call spread · <code>ps</code> put spread</div></span>
       </div>
