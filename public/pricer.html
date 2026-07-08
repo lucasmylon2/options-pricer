@@ -18,7 +18,7 @@
   --mono:'JetBrains Mono',monospace;--sans:'Inter',sans-serif;
 }
 html,body{background:var(--bg);color:var(--text-primary);font-family:var(--sans);font-size:13px;line-height:1.5;height:100%;overflow:hidden;-webkit-font-smoothing:antialiased;}
-.shell{display:grid;grid-template-rows:48px 34px 1fr;height:100vh;height:100dvh;}
+.shell{display:grid;grid-template-rows:auto 48px 34px 1fr;height:100vh;height:100dvh;}
 
 /* topbar */
 .topbar{display:flex;align-items:center;justify-content:space-between;padding:0 16px;border-bottom:1px solid var(--border);background:var(--bg1);flex-shrink:0;}
@@ -230,10 +230,38 @@ input[type=range]:hover::-webkit-slider-thumb{background:var(--blue);}
 
 /* hidden */
 .hidden{display:none!important;}
+
+/* tour */
+.tour-overlay{position:fixed;inset:0;z-index:9998;pointer-events:none;}
+.tour-highlight{position:fixed;z-index:9999;border-radius:6px;box-shadow:0 0 0 9999px rgba(0,0,0,0.45);pointer-events:none;transition:all 0.3s ease;}
+.tour-tooltip{position:fixed;z-index:10000;background:#fff;border:1px solid var(--border);border-radius:8px;padding:16px 18px 14px;max-width:340px;width:max-content;box-shadow:0 8px 30px rgba(0,0,0,0.15);font-family:var(--sans);pointer-events:auto;}
+.tour-tooltip-title{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:0.08em;color:var(--blue);margin-bottom:6px;}
+.tour-tooltip-body{font-size:12px;color:var(--text-secondary);line-height:1.6;}
+.tour-tooltip-footer{display:flex;align-items:center;justify-content:space-between;margin-top:12px;gap:8px;}
+.tour-tooltip-step{font-family:var(--mono);font-size:10px;color:var(--text-dim);}
+.tour-tooltip-btns{display:flex;gap:6px;}
+.tour-btn{font-family:var(--mono);font-size:10px;font-weight:600;padding:5px 14px;border-radius:4px;border:1px solid var(--border);background:transparent;color:var(--text-secondary);cursor:pointer;letter-spacing:0.04em;}
+.tour-btn:hover{background:var(--bg2);}
+.tour-btn-primary{background:var(--blue);color:#fff;border-color:var(--blue);}
+.tour-btn-primary:hover{background:#1d4ed8;}
+.tour-banner{display:flex;align-items:center;justify-content:center;gap:12px;padding:8px 16px;background:linear-gradient(90deg,rgba(37,99,235,0.08),rgba(124,58,237,0.08));border-bottom:1px solid rgba(37,99,235,0.15);font-family:var(--sans);font-size:12px;color:var(--text-secondary);animation:bannerSlide 0.4s ease;}
+.tour-banner button{font-family:var(--mono);font-size:10px;font-weight:700;padding:4px 12px;border-radius:3px;border:1px solid var(--blue);background:var(--blue);color:#fff;cursor:pointer;letter-spacing:0.06em;}
+.tour-banner button:hover{background:#1d4ed8;}
+.tour-banner .dismiss{background:transparent;color:var(--text-dim);border-color:var(--border);font-weight:500;}
+@keyframes bannerSlide{from{opacity:0;transform:translateY(-100%)}to{opacity:1;transform:translateY(0)}}
+.tour-topbar-btn{font-family:var(--mono);font-size:9px;font-weight:600;padding:4px 10px;border-radius:3px;border:1px solid var(--border);background:transparent;color:var(--text-dim);cursor:pointer;letter-spacing:0.06em;transition:all 0.15s;}
+.tour-topbar-btn:hover{border-color:var(--blue);color:var(--blue);}
 </style>
 </head>
 <body>
 <div class="shell">
+
+<!-- TOUR BANNER (first visit) -->
+<div class="tour-banner" id="tourBanner" style="display:none;">
+  <span>Welcome to Options Pricer — a Black-Scholes pricing & visualization tool.</span>
+  <button onclick="dismissBanner();startTour()">TAKE A TOUR</button>
+  <button class="dismiss" onclick="dismissBanner()">DISMISS</button>
+</div>
 
 <!-- TOPBAR -->
 <header class="topbar">
@@ -250,6 +278,7 @@ input[type=range]:hover::-webkit-slider-thumb{background:var(--blue);}
       <button class="mode-btn" id="btn-put" onclick="setSingleType('put')">PUT</button>
     </div>
     <button class="mode-btn" id="resetBtn" onclick="resetCurrentMode()" style="border:1px solid var(--red);border-radius:3px;color:var(--red);margin-left:6px;">RESET</button>
+    <button class="tour-topbar-btn" id="tourBtn" onclick="startTour()">TAKE A TOUR</button>
   </div>
   <div class="topbar-right">
     <div class="price-block">
@@ -2213,6 +2242,80 @@ document.querySelector('.panel-center').addEventListener('dblclick',function(e){
     document.querySelector('.panel-center').style.cursor='';
   });
 })();
+
+/* ── Guided Tour ─────────────────────────── */
+const tourSteps=[
+  {el:'.topbar-left',title:'MODE SELECTION',body:'Switch between <b>Single Leg</b> for individual options and <b>Strategy</b> for multi-leg structures like spreads, strangles, and custom combos.'},
+  {el:'#tickerInput',title:'SMART SEARCH',body:'Type a ticker to browse the chain, or use formulas:<br><code>aapl 26jul17 300 c</code> — single option<br><code>aapl 26jul 300 c</code> — term structure<br><code>aapl 26jul17 300 320 cs</code> — call spread'},
+  {el:'.p-section',title:'SPOT & RANGE',body:'Drag the spot slider to see how price and Greeks change in real time. Use the range presets to zoom in on penny stocks or zoom out for high-priced names. <b>Click-drag on any chart</b> to scrub spot.'},
+  {el:'.anim-section',title:'ANIMATIONS',body:'Sweep spot price across the range, decay time to expiry, or run both simultaneously. Great for visualizing theta burn and delta transitions.'},
+  {el:'.main-chart-wrap',title:'MAIN CHART',body:'The primary visualization — toggle between payoff, P&L, price vs spot, individual Greeks, theta decay, and IV smile views using the tabs above.'},
+  {el:'.greek-grid',title:'GREEK CHARTS',body:'Each Greek plotted against spot price (or time for theta). The current value is shown in the corner. <b>Double-click</b> any chart to reset spot to the live price.'},
+  {el:'.overlay-card',title:'OVERLAY CHART',body:'Combine multiple Greeks and payoff on one chart with dual Y-axes. Toggle each series on/off to compare relationships — e.g., see where gamma peaks relative to your payoff.'},
+  {el:'.greek-tape',title:'GREEK TAPE',body:'A quick-glance ticker tape showing all Greeks, d1, and d2 for the current position. Updates live as you move sliders.'},
+  {el:'.panel-right',title:'NET GREEKS & SCENARIOS',body:'Full Greek breakdown with bar gauges, scenario shocks (what if spot ±5%, IV ±5 pts, etc.), and position decomposition for multi-leg strategies.'},
+];
+let tourIdx=-1,tourHighlight=null,tourTooltip=null,tourOverlay=null;
+
+function dismissBanner(){
+  const b=document.getElementById('tourBanner');
+  if(b)b.style.display='none';
+  localStorage.setItem('optionsPricerTourSeen','1');
+}
+
+function startTour(){
+  dismissBanner();
+  tourIdx=0;
+  if(!tourOverlay){tourOverlay=document.createElement('div');tourOverlay.className='tour-overlay';document.body.appendChild(tourOverlay);}
+  if(!tourHighlight){tourHighlight=document.createElement('div');tourHighlight.className='tour-highlight';document.body.appendChild(tourHighlight);}
+  if(!tourTooltip){tourTooltip=document.createElement('div');tourTooltip.className='tour-tooltip';document.body.appendChild(tourTooltip);}
+  tourOverlay.style.display='block';
+  showTourStep();
+}
+
+function endTour(){
+  if(tourOverlay)tourOverlay.style.display='none';
+  if(tourHighlight)tourHighlight.style.display='none';
+  if(tourTooltip)tourTooltip.style.display='none';
+  tourIdx=-1;
+}
+
+function showTourStep(){
+  if(tourIdx<0||tourIdx>=tourSteps.length){endTour();return;}
+  const step=tourSteps[tourIdx];
+  const target=document.querySelector(step.el);
+  if(!target){tourIdx++;showTourStep();return;}
+  target.scrollIntoView({behavior:'smooth',block:'nearest'});
+  setTimeout(()=>{
+    const r=target.getBoundingClientRect();
+    const pad=6;
+    tourHighlight.style.display='block';
+    tourHighlight.style.left=(r.left-pad)+'px';
+    tourHighlight.style.top=(r.top-pad)+'px';
+    tourHighlight.style.width=(r.width+pad*2)+'px';
+    tourHighlight.style.height=(r.height+pad*2)+'px';
+
+    const isLast=tourIdx===tourSteps.length-1;
+    const isFirst=tourIdx===0;
+    tourTooltip.innerHTML=`<div class="tour-tooltip-title">${step.title}</div><div class="tour-tooltip-body">${step.body}</div><div class="tour-tooltip-footer"><span class="tour-tooltip-step">${tourIdx+1} / ${tourSteps.length}</span><div class="tour-tooltip-btns">${isFirst?'':`<button class="tour-btn" onclick="tourIdx--;showTourStep()">BACK</button>`}<button class="tour-btn" onclick="endTour()">SKIP</button><button class="tour-btn tour-btn-primary" onclick="${isLast?'endTour()':'tourIdx++;showTourStep()'}">  ${isLast?'FINISH':'NEXT'}</button></div></div>`;
+    tourTooltip.style.display='block';
+
+    const tt=tourTooltip.getBoundingClientRect();
+    let tx=r.left;
+    let ty=r.bottom+12;
+    if(ty+tt.height>window.innerHeight){ty=r.top-tt.height-12;}
+    if(ty<4)ty=4;
+    if(tx+tt.width>window.innerWidth-8)tx=window.innerWidth-tt.width-8;
+    if(tx<4)tx=4;
+    tourTooltip.style.left=tx+'px';
+    tourTooltip.style.top=ty+'px';
+  },150);
+}
+
+// Show banner on first visit
+if(!localStorage.getItem('optionsPricerTourSeen')){
+  document.getElementById('tourBanner').style.display='flex';
+}
 </script>
 </body>
 </html>
