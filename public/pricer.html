@@ -125,7 +125,11 @@ input[type=range]:hover::-webkit-slider-thumb{background:var(--blue);}
 .mini-chart-header{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:2px;}
 .mini-chart-name{font-size:12px;font-weight:500;color:var(--text-secondary);}
 .mini-chart-val{font-family:var(--mono);font-size:13px;font-weight:600;}
-.mini-chart-desc{font-size:10px;color:var(--text-dim);margin-bottom:5px;}
+.mini-chart-desc{display:flex;align-items:center;justify-content:space-between;font-size:10px;color:var(--text-dim);margin-bottom:5px;}
+.axis-toggle{display:flex;gap:2px;}
+.axis-btn{font-family:var(--mono);font-size:8px;font-weight:600;padding:1px 5px;border:1px solid var(--border);border-radius:2px;background:transparent;color:var(--text-dim);cursor:pointer;letter-spacing:0.04em;line-height:1.4;}
+.axis-btn:hover{border-color:var(--blue);color:var(--blue);}
+.axis-btn.active{background:var(--blue);border-color:var(--blue);color:#fff;}
 .mini-chart-wrap{position:relative;height:200px;transition:height 0.2s ease;}
 
 .overlay-card{background:var(--bg1);border:1px solid var(--border);border-radius:6px;padding:10px 12px 8px;}
@@ -496,37 +500,37 @@ input[type=range]:hover::-webkit-slider-thumb{background:var(--blue);}
       <div class="greek-grid">
         <div class="mini-chart-card">
           <div class="mini-chart-header"><span class="mini-chart-name">Delta</span><span class="mini-chart-val" id="mg-delta" style="color:#2563EB;">--</span></div>
-          <div class="mini-chart-desc">vs spot price</div>
+          <div class="mini-chart-desc"><span class="mc-desc-text" data-greek="delta">vs spot price</span><div class="axis-toggle" data-greek="delta"><button class="axis-btn active" data-axis="S" onclick="setMiniAxis('delta','S',this)">S</button><button class="axis-btn" data-axis="σ" onclick="setMiniAxis('delta','σ',this)">σ</button><button class="axis-btn" data-axis="T" onclick="setMiniAxis('delta','T',this)">T</button></div></div>
           <div class="mini-chart-wrap"><canvas id="mc-delta"></canvas></div>
         </div>
         <div class="mini-chart-card">
           <div class="mini-chart-header"><span class="mini-chart-name">Gamma</span><span class="mini-chart-val" id="mg-gamma" style="color:#7C3AED;">--</span></div>
-          <div class="mini-chart-desc">vs spot price</div>
+          <div class="mini-chart-desc"><span class="mc-desc-text" data-greek="gamma">vs spot price</span><div class="axis-toggle" data-greek="gamma"><button class="axis-btn active" data-axis="S" onclick="setMiniAxis('gamma','S',this)">S</button><button class="axis-btn" data-axis="σ" onclick="setMiniAxis('gamma','σ',this)">σ</button><button class="axis-btn" data-axis="T" onclick="setMiniAxis('gamma','T',this)">T</button></div></div>
           <div class="mini-chart-wrap"><canvas id="mc-gamma"></canvas></div>
         </div>
         <div class="mini-chart-card">
           <div class="mini-chart-header"><span class="mini-chart-name">Vega</span><span class="mini-chart-val" id="mg-vega" style="color:#D97706;">--</span></div>
-          <div class="mini-chart-desc">vs spot price</div>
+          <div class="mini-chart-desc"><span class="mc-desc-text" data-greek="vega">vs spot price</span><div class="axis-toggle" data-greek="vega"><button class="axis-btn active" data-axis="S" onclick="setMiniAxis('vega','S',this)">S</button><button class="axis-btn" data-axis="σ" onclick="setMiniAxis('vega','σ',this)">σ</button><button class="axis-btn" data-axis="T" onclick="setMiniAxis('vega','T',this)">T</button></div></div>
           <div class="mini-chart-wrap"><canvas id="mc-vega"></canvas></div>
         </div>
         <div class="mini-chart-card">
           <div class="mini-chart-header"><span class="mini-chart-name">Theta</span><span class="mini-chart-val" id="mg-theta" style="color:#DC2626;">--</span></div>
-          <div class="mini-chart-desc">decay over time</div>
+          <div class="mini-chart-desc"><span class="mc-desc-text" data-greek="theta">vs time</span><div class="axis-toggle" data-greek="theta"><button class="axis-btn" data-axis="S" onclick="setMiniAxis('theta','S',this)">S</button><button class="axis-btn" data-axis="σ" onclick="setMiniAxis('theta','σ',this)">σ</button><button class="axis-btn active" data-axis="T" onclick="setMiniAxis('theta','T',this)">T</button></div></div>
           <div class="mini-chart-wrap"><canvas id="mc-theta"></canvas></div>
         </div>
         <div class="mini-chart-card">
           <div class="mini-chart-header"><span class="mini-chart-name">Rho</span><span class="mini-chart-val" id="mg-rho" style="color:#059669;">--</span></div>
-          <div class="mini-chart-desc">vs spot price</div>
+          <div class="mini-chart-desc"><span class="mc-desc-text" data-greek="rho">vs spot price</span><div class="axis-toggle" data-greek="rho"><button class="axis-btn active" data-axis="S" onclick="setMiniAxis('rho','S',this)">S</button><button class="axis-btn" data-axis="σ" onclick="setMiniAxis('rho','σ',this)">σ</button><button class="axis-btn" data-axis="T" onclick="setMiniAxis('rho','T',this)">T</button></div></div>
           <div class="mini-chart-wrap"><canvas id="mc-rho"></canvas></div>
         </div>
         <div class="mini-chart-card">
           <div class="mini-chart-header"><span class="mini-chart-name">Vanna</span><span class="mini-chart-val" id="mg-vanna" style="color:#0891B2;">--</span></div>
-          <div class="mini-chart-desc">vs spot price</div>
+          <div class="mini-chart-desc"><span class="mc-desc-text" data-greek="vanna">vs spot price</span><div class="axis-toggle" data-greek="vanna"><button class="axis-btn active" data-axis="S" onclick="setMiniAxis('vanna','S',this)">S</button><button class="axis-btn" data-axis="σ" onclick="setMiniAxis('vanna','σ',this)">σ</button><button class="axis-btn" data-axis="T" onclick="setMiniAxis('vanna','T',this)">T</button></div></div>
           <div class="mini-chart-wrap"><canvas id="mc-vanna"></canvas></div>
         </div>
         <div class="mini-chart-card">
           <div class="mini-chart-header"><span class="mini-chart-name">Volga</span><span class="mini-chart-val" id="mg-volga" style="color:#E11D48;">--</span></div>
-          <div class="mini-chart-desc">vs spot price</div>
+          <div class="mini-chart-desc"><span class="mc-desc-text" data-greek="volga">vs spot price</span><div class="axis-toggle" data-greek="volga"><button class="axis-btn active" data-axis="S" onclick="setMiniAxis('volga','S',this)">S</button><button class="axis-btn" data-axis="σ" onclick="setMiniAxis('volga','σ',this)">σ</button><button class="axis-btn" data-axis="T" onclick="setMiniAxis('volga','T',this)">T</button></div></div>
           <div class="mini-chart-wrap"><canvas id="mc-volga"></canvas></div>
         </div>
       </div>
@@ -1049,9 +1053,24 @@ function drawMainChart(S,r,q,singleRes,singlePremium){
       else if(chartMode==='gamma'){d1.push(+bs(spot,K,T,r,q,IV,singleType).gamma.toFixed(6));isDollar=false;}
       else if(chartMode==='vega'){d1.push(+bs(spot,K,T,r,q,IV,singleType).vega.toFixed(5));isDollar=false;}
       else if(chartMode==='theta'){const tRem=T*(1-i/spots.length);d1.push(tRem>0?+bs(S,K,tRem,r,q,IV,singleType).theta.toFixed(5):0);labels[i]=Math.round(tRem*365);isDollar=false;}
-      else if(chartMode==='iv_smile'){/* handled below */}
+      else if(chartMode==='pdf'||chartMode==='iv_smile'){/* handled below */}
     });
-    // IV Smile: override labels/datasets from chain data
+    // PDF: risk-neutral log-normal density
+    if(chartMode==='pdf'){
+      isDollar=false;
+      const sqrtT=Math.sqrt(T);
+      const mu=(r-q-0.5*IV*IV)*T;
+      labels=[];const pdfData=[];
+      const lo=S*Math.exp(mu-4*IV*sqrtT),hi=S*Math.exp(mu+4*IV*sqrtT);
+      const nPts=200;
+      for(let i=0;i<=nPts;i++){
+        const x=lo+(hi-lo)*(i/nPts);
+        labels.push(x.toFixed(1));
+        if(x>0){const lnx=Math.log(x/S);const z=(lnx-mu)/(IV*sqrtT);pdfData.push(+((1/(x*IV*sqrtT*Math.sqrt(2*Math.PI)))*Math.exp(-0.5*z*z)).toFixed(6));}
+        else pdfData.push(0);
+      }
+      datasets=[{label:'PDF',data:pdfData,borderColor:'#7C3AED',borderWidth:2,tension:0.2,pointRadius:0,fill:{target:'origin',above:'rgba(124,58,237,0.1)'}}];
+    }
     if(chartMode==='iv_smile'){
       const ctype=chainShowPuts?'put':'call';
       const filtered=chainData.filter(c=>c.option_type===ctype&&c.implied_volatility>0);
@@ -1065,8 +1084,8 @@ function drawMainChart(S,r,q,singleRes,singlePremium){
       }
       isDollar=false;
     }
-    const mC={payoff:'#2563EB',pnl:'#2563EB',price:'#2563EB',delta:'#2563EB',gamma:'#7C3AED',vega:'#D97706',theta:'#DC2626',iv_smile:'#7C3AED'};
-    if(chartMode!=='iv_smile'){
+    const mC={payoff:'#2563EB',pnl:'#2563EB',price:'#2563EB',delta:'#2563EB',gamma:'#7C3AED',vega:'#D97706',theta:'#DC2626',pdf:'#7C3AED',iv_smile:'#7C3AED'};
+    if(chartMode!=='iv_smile'&&chartMode!=='pdf'){
       datasets=chartMode==='payoff'?[
         {label:'Payoff',data:d1,borderColor:'#2563EB',borderWidth:2,tension:0.1,pointRadius:0,fill:false},
         {label:'Premium',data:d2,borderColor:'#DC2626',borderWidth:1.5,borderDash:[6,4],tension:0,pointRadius:0,fill:false},
@@ -1090,9 +1109,27 @@ function drawMainChart(S,r,q,singleRes,singlePremium){
         const legData=spots.map(sp=>{const pf=leg.type==='call'?Math.max(sp-K,0):Math.max(K-sp,0);return+(sign*qty*(pf-entry)).toFixed(4);});
         datasets.push({label:`L${idx+1}`,data:legData,borderColor:legColor(idx),borderWidth:1,borderDash:[4,3],tension:0.1,pointRadius:0,fill:false});
       });
+    } else if(chartMode==='pdf'){
+      isDollar=false;
+      // use first non-stock leg's IV and T for the distribution
+      const firstOpt=legs.find(l=>l.type!=='stock');
+      const IV=firstOpt?(parseFloat(getLegVal(firstOpt.id,'IV'))||25)/100:0.25;
+      const T=firstOpt?(parseFloat(getLegVal(firstOpt.id,'T'))||30)/365:30/365;
+      const sqrtT=Math.sqrt(T);
+      const mu=(r-q-0.5*IV*IV)*T;
+      labels=[];const pdfData=[];
+      const lo=S*Math.exp(mu-4*IV*sqrtT),hi=S*Math.exp(mu+4*IV*sqrtT);
+      const nPts=200;
+      for(let i=0;i<=nPts;i++){
+        const x=lo+(hi-lo)*(i/nPts);
+        labels.push(x.toFixed(1));
+        if(x>0){const lnx=Math.log(x/S);const z=(lnx-mu)/(IV*sqrtT);pdfData.push(+((1/(x*IV*sqrtT*Math.sqrt(2*Math.PI)))*Math.exp(-0.5*z*z)).toFixed(6));}
+        else pdfData.push(0);
+      }
+      datasets=[{label:'PDF',data:pdfData,borderColor:'#7C3AED',borderWidth:2,tension:0.2,pointRadius:0,fill:{target:'origin',above:'rgba(124,58,237,0.1)'}}];
     } else {
       isDollar=false;
-      const greek=chartMode; // 'delta','gamma','vega','theta'
+      const greek=chartMode;
       const netData=spots.map(sp=>{
         let val=0;
         legs.forEach(leg=>{
@@ -1111,7 +1148,7 @@ function drawMainChart(S,r,q,singleRes,singlePremium){
     }
   }
 
-  const yCb=chartMode==='iv_smile'?v=>v.toFixed(1)+'%':v=>isDollar?(v>=0?'$':'-$')+Math.abs(v).toFixed(1):v.toFixed(3);
+  const yCb=chartMode==='iv_smile'?v=>v.toFixed(1)+'%':chartMode==='pdf'?v=>v.toFixed(4):v=>isDollar?(v>=0?'$':'-$')+Math.abs(v).toFixed(1):v.toFixed(3);
   const plOpts={currentPriceLine:{show:true,showLabel:true}};
   if(mainChart){mainChart.data.labels=labels;mainChart.data.datasets=datasets;mainChart.options.scales=baseScales(xCb,yCb);mainChart.options.plugins.tooltip=tooltipCfg(isDollar);mainChart.options.plugins.currentPriceLine=plOpts.currentPriceLine;mainChart.update('none');}
   else{const ctx=document.getElementById('mainChart').getContext('2d');mainChart=new Chart(ctx,{type:'line',data:{labels,datasets},options:{responsive:true,maintainAspectRatio:false,resizeDelay:100,animation:NO_ANIM,transitions:{resize:{animation:RESIZE_ANIM}},interaction:{mode:'index',intersect:false},plugins:{legend:{display:false},tooltip:tooltipCfg(isDollar),...plOpts},scales:baseScales(xCb,yCb)}});}
@@ -1147,59 +1184,81 @@ function buildFooter(S,r,q,singlePremium){
 }
 
 /* ── Mini charts ─────────────────────────── */
+const miniAxis={delta:'S',gamma:'S',vega:'S',theta:'T',rho:'S',vanna:'S',volga:'S'};
+const axisLabels={S:'vs spot price','σ':'vs implied vol',T:'vs time'};
+
+function setMiniAxis(greek,axis,btn){
+  miniAxis[greek]=axis;
+  btn.parentElement.querySelectorAll('.axis-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  const desc=btn.closest('.mini-chart-desc').querySelector('.mc-desc-text');
+  if(desc)desc.textContent=axisLabels[axis];
+  update();
+}
+
 function makeMiniChart(canvasId,color){
   const ctx=document.getElementById(canvasId).getContext('2d');
   return new Chart(ctx,{type:'line',data:{labels:[],datasets:[{data:[],borderColor:color,borderWidth:1.5,tension:0.3,pointRadius:0,fill:false}]},options:{responsive:true,maintainAspectRatio:false,resizeDelay:100,animation:NO_ANIM,transitions:{resize:{animation:RESIZE_ANIM}},plugins:{legend:{display:false},tooltip:{enabled:false},currentPriceLine:{show:true,showLabel:false}},scales:{x:{display:false},y:{display:false}}}});
 }
 function updateMini(chart,labels,data){chart.data.labels=labels;chart.data.datasets[0].data=data;chart.update('none');}
 
-function drawMiniCharts(S,r,q){
-  const spots=spotRange(S,80);
-  const labels=spots.map(s=>s.toFixed(1));
-  const dD=[],gD=[],vD=[],rD=[],vnD=[],vlD=[];
-
+function computeGreekSweep(greek,axis,S,r,q,nPts){
+  const labels=[],data=[];
+  const n=nPts||80;
   if(appMode==='single'){
     const K=parseFloat(document.getElementById('sl-K').value);
     const IV=parseFloat(document.getElementById('sl-IV').value)/100;
     const T=parseFloat(document.getElementById('sl-T').value)/365;
-    spots.forEach(sp=>{const res=bs(sp,K,T,r,q,IV,singleType);dD.push(+res.delta.toFixed(5));gD.push(+res.gamma.toFixed(6));vD.push(+res.vega.toFixed(5));rD.push(+res.rho.toFixed(5));vnD.push(+res.vanna.toFixed(5));vlD.push(+res.volga.toFixed(5));});
+    if(axis==='S'){
+      const spots=spotRange(S,n);
+      spots.forEach(sp=>{labels.push(sp.toFixed(1));data.push(+bs(sp,K,T,r,q,IV,singleType)[greek].toFixed(6));});
+    } else if(axis==='σ'){
+      for(let i=0;i<=n;i++){const v=0.01+(i/n)*0.99;labels.push((v*100).toFixed(0)+'%');data.push(+bs(S,K,T,r,q,v,singleType)[greek].toFixed(6));}
+    } else {
+      for(let i=n;i>=0;i--){const tRem=T*(i/n);labels.push(Math.round(tRem*365)+'d');data.push(tRem>0?+bs(S,K,tRem,r,q,IV,singleType)[greek].toFixed(6):0);}
+    }
   } else {
-    spots.forEach(sp=>{const ng=computeNetGreekAtSpot(sp,r,q);dD.push(+ng.delta.toFixed(5));gD.push(+ng.gamma.toFixed(6));vD.push(+ng.vega.toFixed(5));rD.push(+ng.rho.toFixed(5));vnD.push(+ng.vanna.toFixed(5));vlD.push(+ng.volga.toFixed(5));});
-  }
-
-  const tSteps=80,tL=[],tD=[];
-  if(appMode==='single'){
-    const K=parseFloat(document.getElementById('sl-K').value);
-    const IV=parseFloat(document.getElementById('sl-IV').value)/100;
-    const T=parseFloat(document.getElementById('sl-T').value)/365;
-    for(let i=tSteps;i>=0;i--){const tRem=T*(i/tSteps);tL.push(Math.round(tRem*365));tD.push(tRem>0?+bs(S,K,tRem,r,q,IV,singleType).theta.toFixed(5):0);}
-  } else {
-    // multi: theta vs time, all legs same relative time fraction
-    for(let i=tSteps;i>=0;i--){
-      const frac=i/tSteps;
-      let th=0;
-      legs.forEach(leg=>{
-        if(leg.type==='stock')return;
-        const sign=leg.dir==='long'?1:-1;
-        const qty=parseFloat(getLegVal(leg.id,'qty'))||1;
-        const K=parseFloat(getLegVal(leg.id,'K'))||100;
-        const IV=parseFloat(getLegVal(leg.id,'IV'))||25;
-        const T=(parseFloat(getLegVal(leg.id,'T'))||30)/365;
-        const tRem=T*frac;
-        if(tRem>0) th+=sign*qty*bs(S,K,tRem,r,q,IV/100,leg.type).theta;
-      });
-      tL.push(Math.round((legs[0]?(parseFloat(getLegVal(legs[0].id,'T'))||30):30)*frac));
-      tD.push(+th.toFixed(5));
+    if(axis==='S'){
+      const spots=spotRange(S,n);
+      spots.forEach(sp=>{labels.push(sp.toFixed(1));const ng=computeNetGreekAtSpot(sp,r,q);data.push(+ng[greek].toFixed(6));});
+    } else if(axis==='σ'){
+      for(let i=0;i<=n;i++){
+        const v=0.01+(i/n)*0.99;labels.push((v*100).toFixed(0)+'%');
+        let val=0;
+        legs.forEach(leg=>{
+          if(leg.type==='stock'){if(greek==='delta'){val+=(leg.dir==='long'?1:-1)*(parseFloat(getLegVal(leg.id,'qty'))||1);}return;}
+          const sign=leg.dir==='long'?1:-1;const qty=parseFloat(getLegVal(leg.id,'qty'))||1;
+          const K=parseFloat(getLegVal(leg.id,'K'))||100;const T=(parseFloat(getLegVal(leg.id,'T'))||30)/365;
+          val+=sign*qty*bs(S,K,T,r,q,v,leg.type)[greek];
+        });
+        data.push(+val.toFixed(6));
+      }
+    } else {
+      const maxT=legs.reduce((mx,leg)=>{if(leg.type==='stock')return mx;return Math.max(mx,(parseFloat(getLegVal(leg.id,'T'))||30)/365);},30/365);
+      for(let i=n;i>=0;i--){
+        const frac=i/n;labels.push(Math.round(maxT*frac*365)+'d');
+        let val=0;
+        legs.forEach(leg=>{
+          if(leg.type==='stock'){if(greek==='delta'){val+=(leg.dir==='long'?1:-1)*(parseFloat(getLegVal(leg.id,'qty'))||1);}return;}
+          const sign=leg.dir==='long'?1:-1;const qty=parseFloat(getLegVal(leg.id,'qty'))||1;
+          const K=parseFloat(getLegVal(leg.id,'K'))||100;const IV=parseFloat(getLegVal(leg.id,'IV'))||25;
+          const T=(parseFloat(getLegVal(leg.id,'T'))||30)/365;const tRem=T*frac;
+          if(tRem>0) val+=sign*qty*bs(S,K,tRem,r,q,IV/100,leg.type)[greek];
+        });
+        data.push(+val.toFixed(6));
+      }
     }
   }
+  return{labels,data};
+}
 
-  updateMini(miniCharts.delta,labels,dD);
-  updateMini(miniCharts.gamma,labels,gD);
-  updateMini(miniCharts.vega,labels,vD);
-  updateMini(miniCharts.theta,tL,tD);
-  updateMini(miniCharts.rho,labels,rD);
-  updateMini(miniCharts.vanna,labels,vnD);
-  updateMini(miniCharts.volga,labels,vlD);
+function drawMiniCharts(S,r,q){
+  const greeks=['delta','gamma','vega','theta','rho','vanna','volga'];
+  greeks.forEach(g=>{
+    const ax=miniAxis[g];
+    const result=computeGreekSweep(g,ax,S,r,q,80);
+    updateMini(miniCharts[g],result.labels,result.data);
+  });
 }
 
 function computeNetGreekAtSpot(sp,r,q){
@@ -2251,7 +2310,7 @@ const tourSteps=[
   {el:'.anim-section',title:'ANIMATIONS',body:'Sweep spot price across the range, decay time to expiry, or run both simultaneously. Great for visualizing theta burn and delta transitions.'},
   {el:'.main-chart-wrap',title:'MAIN CHART',body:'The primary visualization — toggle between payoff, P&L, price vs spot, individual Greeks, theta decay, and IV smile views using the tabs above.'},
   {el:'.greek-grid',title:'GREEK CHARTS',body:'Each Greek plotted against spot price (or time for theta). The current value is shown in the corner. <b>Double-click</b> any chart to reset spot to the live price.'},
-  {el:'.overlay-card',title:'OVERLAY CHART',body:'Combine multiple Greeks and payoff on one chart with dual Y-axes. Toggle each series on/off to compare relationships — e.g., see where gamma peaks relative to your payoff.'},
+  {el:'#overlayToggles',title:'OVERLAY CHART',body:'Combine multiple Greeks and payoff on one chart with dual Y-axes. Toggle each series on/off to compare relationships — e.g., see where gamma peaks relative to your payoff.'},
   {el:'.greek-tape',title:'GREEK TAPE',body:'A quick-glance ticker tape showing all Greeks, d1, and d2 for the current position. Updates live as you move sliders.'},
   {el:'.panel-right',title:'NET GREEKS & SCENARIOS',body:'Full Greek breakdown with bar gauges, scenario shocks (what if spot ±5%, IV ±5 pts, etc.), and position decomposition for multi-leg strategies.'},
 ];
