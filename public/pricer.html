@@ -53,8 +53,8 @@ html,body{background:var(--bg);color:var(--text-primary);font-family:var(--sans)
 /* left panel */
 .panel-left{border-right:1px solid var(--border);overflow-y:auto;background:var(--bg1);display:flex;flex-direction:column;scrollbar-width:thin;scrollbar-color:var(--border-hi) transparent;}
 .panel-left>*{flex-shrink:0;}
-.mkt-section{flex:1 1 0;min-height:60px;display:flex;flex-direction:column;overflow:hidden;padding:6px 16px 8px;border-bottom:1px solid var(--border);background:rgba(37,99,235,0.02);}
-.mkt-section>#chainWrap{flex:1 1 0;min-height:0;display:flex;flex-direction:column;overflow:hidden;}
+.mkt-section{flex-shrink:0;display:flex;flex-direction:column;padding:6px 16px 8px;border-bottom:1px solid var(--border);background:rgba(37,99,235,0.02);}
+.mkt-section>#chainWrap{max-height:200px;display:flex;flex-direction:column;overflow:hidden;}
 .chain-scroll{flex:1 1 0;min-height:80px;max-height:none;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--border-hi) transparent;}
 .panel-left::-webkit-scrollbar{width:3px;}
 .panel-left::-webkit-scrollbar-thumb{background:var(--border-hi);}
@@ -1495,12 +1495,63 @@ async function handleFormula(f){
         setStatus('No '+f.monthName+' '+f.year+' expirations found','error');
         document.getElementById('fetchBtn').disabled=false;return;
       }
-      setStatus(`Fetching ${f.strike}${typeLabel} across ${monthExps.length} ${f.monthName} expirations...`,'');
+      const fetchLabel=f.isSpread?`${f.strikes.join('/')} ${spreadLabel}`:`${f.strike}${typeLabel}`;
+      setStatus(`Fetching ${fetchLabel} across ${monthExps.length} ${f.monthName} expirations...`,'');
       const chainPromises=monthExps.map(exp=>
         apiFetch('/api/tradier/chain?symbol='+encodeURIComponent(f.ticker)+'&expiration='+exp)
           .then(r=>({exp,data:r})).catch(()=>({exp,data:null}))
       );
       const results=await Promise.all(chainPromises);
+
+      if(f.isSpread&&f.strikes.length>=2){
+        // Spread term structure: find all strikes in each expiry
+        const sortedStrikes=[...f.strikes].sort((a,b)=>a-b);
+        const termRows=[];
+        for(const{exp,data}of results){
+          if(!data||!data.contracts)continue;
+          if(data.underlying_price)liveStockPrice=data.underlying_price;
+          const legs=sortedStrikes.map(k=>data.contracts.find(c=>c.option_type===f.type&&Math.abs(c.strike-k)<0.5));
+          if(legs.every(l=>l)){
+            const longLeg=legs[0],shortLeg=legs[1];
+            const netBid=(longLeg.bid||0)-(shortLeg.ask||0);
+            const netAsk=(longLeg.ask||0)-(shortLeg.bid||0);
+            const netMid=(netBid+netAsk)/2;
+            termRows.push({exp,legs,netBid,netAsk,netMid,longLeg,shortLeg});
+          }
+        }
+        if(termRows.length===0){
+          setStatus('No '+sortedStrikes.join('/')+' '+spreadLabel+' found in '+f.monthName+' expirations','error');
+          document.getElementById('fetchBtn').disabled=false;return;
+        }
+        const hdr=`<span style="font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:0.1em;color:var(--text-dim);">${f.ticker} ${sortedStrikes.join('/')} ${spreadLabel.toUpperCase()} — ${f.monthName.toUpperCase()} ${f.year} TERM STRUCTURE</span>`;
+        const thead=`<tr><th>Expiry</th><th>DTE</th><th>Net Bid</th><th>Net Ask</th><th>Net Mid</th><th>Max P</th><th></th></tr>`;
+        const tbody=termRows.map(r=>{
+          const dte=Math.max(Math.round((new Date(r.exp+'T16:00:00')-new Date())/(1000*60*60*24)),1);
+          const width=Math.abs(sortedStrikes[1]-sortedStrikes[0]);
+          const maxProfit=width-r.netAsk;
+          const ivs=r.legs.map(l=>l.implied_volatility||0.25);
+          return`<tr onclick="loadTermSpread('${f.ticker}','${r.exp}',${JSON.stringify(sortedStrikes).replace(/"/g,"'")},'${f.type}',${dte},this)" style="cursor:pointer;">
+            <td style="text-align:left">${r.exp}</td><td>${dte}d</td>
+            <td>${r.netBid.toFixed(2)}</td><td>${r.netAsk.toFixed(2)}</td>
+            <td>${r.netMid.toFixed(2)}</td>
+            <td style="color:var(--green);">${maxProfit.toFixed(2)}</td>
+            <td style="color:var(--blue);font-size:9px;">USE</td></tr>`;
+        }).join('');
+        const chainWrap=document.getElementById('chainWrap');
+        chainWrap.innerHTML=`<div style="margin-top:8px;">${hdr}</div>
+          <div class="chain-scroll" id="chainScroll"><table class="chain-table"><thead>${thead}</thead><tbody>${tbody}</tbody></table></div>`;
+        chainWrap.classList.remove('hidden');
+        populateExpiryDropdown(monthExps);
+        document.getElementById('expirySelect').value='';
+        update();
+        fetchSupplemental(f.ticker);
+        setStatus(`${termRows.length} ${f.monthName} expirations for ${sortedStrikes.join('/')} ${spreadLabel}`,'success');
+        setTimeout(()=>document.querySelector('.panel-left').scrollTop=0,100);
+        document.getElementById('fetchBtn').disabled=false;
+        return;
+      }
+
+      // Single-strike term structure
       const termRows=[];
       for(const{exp,data}of results){
         if(!data||!data.contracts)continue;
@@ -1535,6 +1586,7 @@ async function handleFormula(f){
       update();
       fetchSupplemental(f.ticker);
       setStatus(`${termRows.length} ${f.monthName} expirations for ${f.strike}${typeLabel}`,'success');
+      setTimeout(()=>document.querySelector('.panel-left').scrollTop=0,100);
       document.getElementById('fetchBtn').disabled=false;
       return;
     }
@@ -1575,6 +1627,7 @@ async function handleFormula(f){
       update();
       fetchSupplemental(f.ticker);
       setStatus(`${spreadLabel}: ${sortedStrikes.join('/')} ${f.ticker} ${exp} loaded`,'success');
+      setTimeout(()=>document.querySelector('.panel-left').scrollTop=0,100);
       document.getElementById('fetchBtn').disabled=false;
       return;
     }
@@ -1625,6 +1678,7 @@ async function handleFormula(f){
     update();
     fetchSupplemental(f.ticker);
     setStatus(`${f.ticker} ${exp} ${match.strike} ${f.type.toUpperCase()} loaded — IV ${match.implied_volatility>0?(match.implied_volatility*100).toFixed(1)+'%':'N/A'}`,'success');
+    document.querySelector('.panel-left').scrollTop=0;
   }catch(e){setStatus('Error: '+e.message,'error');}
   document.getElementById('fetchBtn').disabled=false;
 }
@@ -1820,6 +1874,32 @@ async function fetchChainForSmile(ticker,exp){
       update();
     }
   }catch(e){}
+}
+
+async function loadTermSpread(ticker,exp,strikes,type,dte,rowEl){
+  document.querySelectorAll('.chain-table tr.selected').forEach(r=>r.classList.remove('selected'));
+  if(rowEl)rowEl.classList.add('selected');
+  if(appMode!=='multi')setMode('multi');
+  legs=[];legIdCounter=0;
+  setStatus(`Loading ${strikes.join('/')} ${type} spread for ${exp}...`,'');
+  try{
+    const resp=await apiFetch('/api/tradier/chain?symbol='+encodeURIComponent(ticker)+'&expiration='+exp);
+    if(!resp||!resp.contracts){setStatus('Failed to load chain','error');return;}
+    chainData=resp.contracts;
+    if(resp.underlying_price)liveStockPrice=resp.underlying_price;
+    const sorted=[...strikes].sort((a,b)=>a-b);
+    for(let i=0;i<sorted.length;i++){
+      const k=sorted[i];
+      const contract=chainData.find(c=>c.option_type===type&&Math.abs(c.strike-k)<0.5);
+      const nearest=contract||chainData.filter(c=>c.option_type===type).sort((a,b)=>Math.abs(a.strike-k)-Math.abs(b.strike-k))[0];
+      const iv=nearest?.implied_volatility>0?+(nearest.implied_volatility*100).toFixed(1):25;
+      addLeg({type,dir:i===0?'long':'short',K:nearest?.strike||k,IV:iv,T:dte,qty:1});
+    }
+    document.getElementById('expirySelect').value=exp;
+    update();
+    const spreadName=type==='call'?'Call Spread':'Put Spread';
+    setStatus(`${spreadName}: ${sorted.join('/')} ${ticker} ${exp} loaded`,'success');
+  }catch(e){setStatus('Error: '+e.message,'error');}
 }
 
 /* ── Yahoo supplemental data ────────────── */
