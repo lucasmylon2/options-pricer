@@ -2201,7 +2201,7 @@ document.querySelector('.panel-center').addEventListener('dblclick',function(e){
     const dx=e.clientX-startX;
     const pxPerStep=3;
     const steps=Math.round(dx/pxPerStep);
-    const newVal=Math.min(parseFloat(sl.max),Math.max(parseFloat(sl.min),startVal+steps*step));
+    const newVal=Math.min(parseFloat(sl.max),Math.max(parseFloat(sl.min),startVal-steps*step));
     sl.value=newVal;
     spotFollowsLive=false;
     updateSpotTrackBadge();
