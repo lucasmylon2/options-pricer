@@ -2043,6 +2043,36 @@ document.querySelector('.panel-center').addEventListener('wheel',function(e){
   updateSpotTrackBadge();
   update();
 },{passive:false});
+
+// Click-drag on charts to move spot price
+(function(){
+  const panel=document.querySelector('.panel-center');
+  let dragging=false,startX=0,startVal=0;
+  panel.addEventListener('mousedown',function(e){
+    if(!e.target.closest('.main-chart-wrap,.mini-chart-card'))return;
+    dragging=true;startX=e.clientX;startVal=parseFloat(document.getElementById('sl-S').value);
+    e.preventDefault();
+    panel.style.cursor='ew-resize';
+  });
+  window.addEventListener('mousemove',function(e){
+    if(!dragging)return;
+    const sl=document.getElementById('sl-S');
+    const step=parseFloat(sl.step)||1;
+    const dx=e.clientX-startX;
+    const pxPerStep=3;
+    const steps=Math.round(dx/pxPerStep);
+    const newVal=Math.min(parseFloat(sl.max),Math.max(parseFloat(sl.min),startVal+steps*step));
+    sl.value=newVal;
+    spotFollowsLive=false;
+    updateSpotTrackBadge();
+    update();
+  });
+  window.addEventListener('mouseup',function(){
+    if(!dragging)return;
+    dragging=false;
+    document.querySelector('.panel-center').style.cursor='';
+  });
+})();
 </script>
 </body>
 </html>
