@@ -2028,6 +2028,21 @@ function updateSpotTrackBadge(){
 
 rebuildTabs();
 update();
+
+// Scroll on charts to move spot price
+document.querySelector('.panel-center').addEventListener('wheel',function(e){
+  const target=e.target.closest('.main-chart-wrap,.mini-chart-card');
+  if(!target)return;
+  e.preventDefault();
+  const sl=document.getElementById('sl-S');
+  const step=parseFloat(sl.step)||1;
+  const delta=e.deltaY>0?-step:step;
+  const newVal=Math.min(parseFloat(sl.max),Math.max(parseFloat(sl.min),parseFloat(sl.value)+delta));
+  sl.value=newVal;
+  spotFollowsLive=false;
+  updateSpotTrackBadge();
+  update();
+},{passive:false});
 </script>
 </body>
 </html>
