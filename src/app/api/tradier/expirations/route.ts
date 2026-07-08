@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 const BASE = process.env.MASSIVE_BASE_URL || 'https://api.massive.com';
 const KEY = process.env.MASSIVE_API_KEY || '';
 
-const MAX_PAGES = 12;
+const MAX_PAGES = 40;
 
 export async function GET(req: NextRequest) {
   const symbol = req.nextUrl.searchParams.get('symbol');
