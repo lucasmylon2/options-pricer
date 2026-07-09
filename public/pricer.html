@@ -253,6 +253,20 @@ input[type=range]:hover::-webkit-slider-thumb{background:var(--blue);}
 .friday-bg{position:fixed;inset:0;z-index:99998;animation:fridayBg 1s linear infinite;}
 .confetti{position:fixed;z-index:99999;pointer-events:none;}
 
+/* chud */
+.chud-overlay{position:fixed;inset:0;z-index:99998;background:#000;display:flex;overflow:hidden;}
+.chud-left{flex:1;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;}
+.chud-right{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;position:relative;overflow:hidden;}
+.chud-runner{width:100%;height:100%;object-fit:cover;}
+.chud-text{position:absolute;font-family:'Impact',sans-serif;color:#fff;text-shadow:2px 2px 0 #000,-2px -2px 0 #000,2px -2px 0 #000,-2px 2px 0 #000;z-index:2;pointer-events:none;animation:chudFloat 2s ease-in-out infinite;}
+.chud-text.top{top:10%;font-size:28px;animation-delay:0s;}
+.chud-text.mid{top:45%;font-size:42px;animation-delay:0.3s;}
+.chud-text.bot{bottom:10%;font-size:24px;animation-delay:0.6s;}
+@keyframes chudFloat{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-10px) rotate(2deg)}}
+@keyframes chudScroll{from{transform:translateY(0)}to{transform:translateY(-50%)}}
+.chud-scroll-strip{display:flex;flex-direction:column;animation:chudScroll 4s linear infinite;}
+.chud-emoji{font-size:48px;margin:4px 0;text-align:center;}
+
 /* tour */
 .tour-overlay{position:fixed;inset:0;z-index:9998;pointer-events:none;}
 .tour-highlight{position:fixed;z-index:9999;border-radius:6px;box-shadow:0 0 0 9999px rgba(0,0,0,0.45);pointer-events:none;transition:all 0.3s ease;}
@@ -1863,6 +1877,7 @@ function populateExpiryDropdown(dates){
 async function fetchQuote(){
   const raw=document.getElementById('tickerInput').value.trim();
   if(raw.toLowerCase()==='friday'){triggerFriday();return;}
+  if(raw.toLowerCase()==='chud'){triggerChud();return;}
   const formula=parseOptionFormula(raw);
   if(formula)return handleFormula(formula);
   const ticker=raw.toUpperCase();
@@ -2484,6 +2499,116 @@ function triggerFriday(){
     confettiEls.forEach(c=>c.remove());
     document.getElementById('tickerInput').value='';
   },5000);
+}
+
+function triggerChud(){
+  const ov=document.createElement('div');
+  ov.className='chud-overlay';
+
+  // Left side: subway surfers style scrolling background
+  const left=document.createElement('div');
+  left.className='chud-left';
+  left.style.background='linear-gradient(180deg,#1a1a2e,#16213e,#0f3460,#533483)';
+
+  // Scrolling subway-style buildings/obstacles
+  const track=document.createElement('div');
+  track.style.cssText='position:absolute;inset:0;overflow:hidden;';
+  const buildings=document.createElement('div');
+  buildings.style.cssText='position:absolute;bottom:0;width:100%;height:200%;animation:chudScroll 3s linear infinite;';
+  const colors=['#e94560','#533483','#0f3460','#16213e','#e94560','#ffd460','#533483'];
+  for(let i=0;i<20;i++){
+    const b=document.createElement('div');
+    const w=40+Math.random()*80;
+    const h=60+Math.random()*200;
+    b.style.cssText=`position:absolute;bottom:${i*10}%;left:${Math.random()*90}%;width:${w}px;height:${h}px;background:${colors[i%colors.length]};border-radius:4px 4px 0 0;opacity:0.7;`;
+    buildings.appendChild(b);
+  }
+  track.appendChild(buildings);
+  left.appendChild(track);
+
+  // Runner character (emoji stack)
+  const runner=document.createElement('div');
+  runner.style.cssText='position:absolute;bottom:20%;left:50%;transform:translateX(-50%);font-size:80px;z-index:3;animation:chudFloat 0.5s ease-in-out infinite;';
+  runner.textContent='\u{1F3C3}';
+  left.appendChild(runner);
+
+  // Coins
+  for(let i=0;i<8;i++){
+    const coin=document.createElement('div');
+    coin.style.cssText=`position:absolute;font-size:32px;z-index:2;top:${10+Math.random()*60}%;left:${10+Math.random()*80}%;animation:chudFloat ${0.8+Math.random()}s ease-in-out infinite;animation-delay:${Math.random()}s;`;
+    coin.textContent='\u{1FA99}';
+    left.appendChild(coin);
+  }
+
+  // Floating brainrot text on left
+  const texts1=['SKIBIDI','OHIO','RIZZ','GYATT','SIGMA','FANUM TAX'];
+  const t1=document.createElement('div');t1.className='chud-text top';t1.textContent=texts1[Math.floor(Math.random()*texts1.length)];
+  const t2=document.createElement('div');t2.className='chud-text mid';t2.textContent='SUBWAY SURFERS';t2.style.color='#ffd460';
+  left.appendChild(t1);left.appendChild(t2);
+
+  // Right side: brainrot content wall
+  const right=document.createElement('div');
+  right.className='chud-right';
+  right.style.background='linear-gradient(180deg,#0d0d0d,#1a0a2e,#0d0d0d)';
+
+  const brainrotPhrases=[
+    'SKIBIDI TOILET','ONLY IN OHIO','DUKE DENNIS',
+    'DID YOU PRAY TODAY?','FANUM TAX','BABY GRONK',
+    'LIVVY DUNNE RIZZ','SIGMA GRINDSET','GYATT',
+    'MEWING STREAK: 47 DAYS','L + RATIO','NO CAP FR FR',
+    'ITS GIVING AURA','HAWK TUAH','TYPE SHIT',
+    'EDGING STREAK','MOGGER','LOOKSMAXXING'
+  ];
+  const emojis=['\u{1F6BD}','\u{1F480}','\u{1F525}','\u{1F4A5}','\u{1F913}','\u{1F47F}','\u{1F9E0}','\u{1F5FF}','\u{1F4B0}','\u{2757}','\u{1F4AF}','\u{1F976}'];
+
+  // Scrolling text column
+  const strip=document.createElement('div');
+  strip.className='chud-scroll-strip';
+  for(let i=0;i<40;i++){
+    const row=document.createElement('div');
+    row.style.cssText='padding:6px 12px;text-align:center;white-space:nowrap;';
+    if(i%3===0){
+      row.className='chud-emoji';
+      row.textContent=emojis[Math.floor(Math.random()*emojis.length)].repeat(3);
+    } else {
+      row.style.fontFamily='Impact,sans-serif';
+      row.style.fontSize=(16+Math.random()*20)+'px';
+      row.style.color=['#e94560','#ffd460','#00ff88','#ff6b6b','#a855f7','#38bdf8'][Math.floor(Math.random()*6)];
+      row.style.textShadow='1px 1px 0 #000';
+      row.textContent=brainrotPhrases[Math.floor(Math.random()*brainrotPhrases.length)];
+    }
+    strip.appendChild(row);
+  }
+  right.appendChild(strip);
+
+  // Big center text on right
+  const bigText=document.createElement('div');
+  bigText.className='chud-text mid';
+  bigText.style.color='#00ff88';
+  bigText.textContent='BRAINROT';
+  right.appendChild(bigText);
+
+  const botText=document.createElement('div');
+  botText.className='chud-text bot';
+  botText.style.color='#e94560';
+  botText.textContent='CHUD MODE ACTIVATED';
+  right.appendChild(botText);
+
+  ov.appendChild(left);
+  ov.appendChild(right);
+  document.body.appendChild(ov);
+
+  // Screen shake
+  document.body.animate([
+    {transform:'translate(0,0)'},{transform:'translate(-3px,2px)'},
+    {transform:'translate(3px,-2px)'},{transform:'translate(-2px,-3px)'},
+    {transform:'translate(2px,3px)'},{transform:'translate(0,0)'}
+  ],{duration:200,iterations:30});
+
+  setTimeout(()=>{
+    ov.remove();
+    document.getElementById('tickerInput').value='';
+  },8000);
 }
 
 const collapsibleIds=['rangeBody','animBody','ratesBody','ratesMultiBody'];
