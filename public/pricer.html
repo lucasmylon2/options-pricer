@@ -235,6 +235,16 @@ input[type=range]:hover::-webkit-slider-thumb{background:var(--blue);}
 /* hidden */
 .hidden{display:none!important;}
 
+/* friday */
+.friday-overlay{position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;pointer-events:none;}
+.friday-text{font-family:var(--mono);font-weight:900;color:#fff;text-align:center;text-shadow:0 0 40px rgba(37,99,235,0.8),0 0 80px rgba(124,58,237,0.6);animation:fridayPulse 0.5s ease infinite alternate;}
+.friday-text .fri-main{font-size:72px;letter-spacing:0.1em;display:block;}
+.friday-text .fri-sub{font-size:24px;letter-spacing:0.2em;opacity:0.9;margin-top:8px;display:block;}
+@keyframes fridayPulse{from{transform:scale(1);filter:hue-rotate(0deg)}to{transform:scale(1.05);filter:hue-rotate(30deg)}}
+@keyframes fridayBg{0%{background:rgba(37,99,235,0.95)}25%{background:rgba(124,58,237,0.95)}50%{background:rgba(220,38,38,0.95)}75%{background:rgba(217,119,6,0.95)}100%{background:rgba(37,99,235,0.95)}}
+.friday-bg{position:fixed;inset:0;z-index:99998;animation:fridayBg 1s linear infinite;}
+.confetti{position:fixed;z-index:99999;pointer-events:none;}
+
 /* tour */
 .tour-overlay{position:fixed;inset:0;z-index:9998;pointer-events:none;}
 .tour-highlight{position:fixed;z-index:9999;border-radius:6px;box-shadow:0 0 0 9999px rgba(0,0,0,0.45);pointer-events:none;transition:all 0.3s ease;}
@@ -322,7 +332,7 @@ input[type=range]:hover::-webkit-slider-thumb{background:var(--blue);}
     <div class="mkt-section">
       <div class="p-heading">MARKET DATA</div>
       <div class="mkt-row">
-        <input class="ticker-input" id="tickerInput" type="text" placeholder="aapl 17jul26 300 c" onkeydown="if(event.key==='Enter')fetchQuote()" onfocus="this._prev=this.value;this.value=''" onblur="if(!this.value)this.value=this._prev||''">
+        <input class="ticker-input" id="tickerInput" type="text" placeholder="aapl 17jul26 300 c" onkeydown="if(event.key==='Enter')fetchQuote()">
         <button class="fetch-btn" id="fetchBtn" onclick="fetchQuote()">FETCH</button>
         <span class="info-icon">?<div class="info-tooltip"><b>Search formats</b><br><br><code>AAPL</code> — ticker only, browse chain<br><br><code>aapl 17jul26 300 c</code> — single call<br><code>aapl 17jul26 300 p</code> — single put<br><br><code>aapl jul26 300 c</code> — no day: shows term structure across all July expirations<br><br><code>aapl 17jul26 300 320 cs</code> — call spread (long 300c, short 320c)<br><code>aapl 17jul26 300 280 ps</code> — put spread<br><br><b>Format:</b> ticker &nbsp;expiry &nbsp;strike(s) &nbsp;type<br><b>Types:</b> <code>c</code> call · <code>p</code> put · <code>cs</code> call spread · <code>ps</code> put spread</div></span>
       </div>
@@ -1832,6 +1842,7 @@ function populateExpiryDropdown(dates){
 
 async function fetchQuote(){
   const raw=document.getElementById('tickerInput').value.trim();
+  if(raw.toLowerCase()==='friday'){triggerFriday();return;}
   const formula=parseOptionFormula(raw);
   if(formula)return handleFormula(formula);
   const ticker=raw.toUpperCase();
@@ -2385,6 +2396,71 @@ function showTourStep(){
 // Show banner on first visit
 if(!localStorage.getItem('optionsPricerTourSeen')){
   document.getElementById('tourBanner').style.display='flex';
+}
+
+/* ── Friday Mode ─────────────────────────── */
+function triggerFriday(){
+  const now=new Date();
+  const isFriday=now.getDay()===5;
+
+  // background
+  const bg=document.createElement('div');
+  bg.className='friday-bg';
+  document.body.appendChild(bg);
+
+  // overlay text
+  const ov=document.createElement('div');
+  ov.className='friday-overlay';
+  if(isFriday){
+    ov.innerHTML='<div class="friday-text"><span class="fri-main">IT\'S FRIDAY</span><span class="fri-sub">LET\'S GO</span></div>';
+  } else {
+    const daysUntil=(5-now.getDay()+7)%7||7;
+    const nextFri=new Date(now);nextFri.setDate(now.getDate()+daysUntil);nextFri.setHours(0,0,0,0);
+    const diff=nextFri-now;
+    const h=Math.floor(diff/3600000);const m=Math.floor((diff%3600000)/60000);const s=Math.floor((diff%60000)/1000);
+    ov.innerHTML=`<div class="friday-text"><span class="fri-main">FRIDAY IN</span><span class="fri-sub">${h}h ${m}m ${s}s</span></div>`;
+  }
+  document.body.appendChild(ov);
+
+  // confetti
+  const colors=['#2563EB','#7C3AED','#DC2626','#D97706','#059669','#E11D48','#0891B2','#FFD700'];
+  const confettiEls=[];
+  for(let i=0;i<120;i++){
+    const c=document.createElement('div');
+    c.className='confetti';
+    const size=4+Math.random()*8;
+    const isCircle=Math.random()>0.5;
+    c.style.cssText=`left:${Math.random()*100}vw;top:-20px;width:${size}px;height:${isCircle?size:size*2.5}px;background:${colors[Math.floor(Math.random()*colors.length)]};border-radius:${isCircle?'50%':'2px'};opacity:${0.7+Math.random()*0.3};`;
+    document.body.appendChild(c);
+    confettiEls.push(c);
+    const dur=1500+Math.random()*2500;
+    const drift=-100+Math.random()*200;
+    const spin=Math.random()*720;
+    c.animate([
+      {transform:'translateY(0) translateX(0) rotate(0deg)',opacity:1},
+      {transform:`translateY(${window.innerHeight+40}px) translateX(${drift}px) rotate(${spin}deg)`,opacity:0.3}
+    ],{duration:dur,easing:'cubic-bezier(0.25,0.46,0.45,0.94)',fill:'forwards',delay:Math.random()*800});
+  }
+
+  // screen shake
+  document.body.style.animation='none';
+  const shakeKf=[
+    {transform:'translate(0,0)'},
+    {transform:'translate(-3px,2px)'},
+    {transform:'translate(3px,-2px)'},
+    {transform:'translate(-2px,-3px)'},
+    {transform:'translate(2px,3px)'},
+    {transform:'translate(0,0)'}
+  ];
+  document.body.animate(shakeKf,{duration:200,iterations:25});
+
+  // cleanup after 5 seconds
+  setTimeout(()=>{
+    bg.remove();
+    ov.remove();
+    confettiEls.forEach(c=>c.remove());
+    document.getElementById('tickerInput').value='';
+  },5000);
 }
 </script>
 </body>
