@@ -322,9 +322,9 @@ input[type=range]:hover::-webkit-slider-thumb{background:var(--blue);}
     <div class="mkt-section">
       <div class="p-heading">MARKET DATA</div>
       <div class="mkt-row">
-        <input class="ticker-input" id="tickerInput" type="text" placeholder="aapl 26jul17 300 c" onkeydown="if(event.key==='Enter')fetchQuote()" onfocus="this._prev=this.value;this.value=''" onblur="if(!this.value)this.value=this._prev||''">
+        <input class="ticker-input" id="tickerInput" type="text" placeholder="aapl 17jul26 300 c" onkeydown="if(event.key==='Enter')fetchQuote()" onfocus="this._prev=this.value;this.value=''" onblur="if(!this.value)this.value=this._prev||''">
         <button class="fetch-btn" id="fetchBtn" onclick="fetchQuote()">FETCH</button>
-        <span class="info-icon">?<div class="info-tooltip"><b>Search formats</b><br><br><code>AAPL</code> — ticker only, browse chain<br><br><code>aapl 26jul17 300 c</code> — single call<br><code>aapl 26jul17 300 p</code> — single put<br><br><code>aapl 26jul 300 c</code> — no day: shows term structure across all July expirations<br><br><code>aapl 26jul17 300 320 cs</code> — call spread (long 300c, short 320c)<br><code>aapl 26jul17 300 280 ps</code> — put spread<br><br><b>Format:</b> ticker &nbsp;expiry &nbsp;strike(s) &nbsp;type<br><b>Types:</b> <code>c</code> call · <code>p</code> put · <code>cs</code> call spread · <code>ps</code> put spread</div></span>
+        <span class="info-icon">?<div class="info-tooltip"><b>Search formats</b><br><br><code>AAPL</code> — ticker only, browse chain<br><br><code>aapl 17jul26 300 c</code> — single call<br><code>aapl 17jul26 300 p</code> — single put<br><br><code>aapl jul26 300 c</code> — no day: shows term structure across all July expirations<br><br><code>aapl 17jul26 300 320 cs</code> — call spread (long 300c, short 320c)<br><code>aapl 17jul26 300 280 ps</code> — put spread<br><br><b>Format:</b> ticker &nbsp;expiry &nbsp;strike(s) &nbsp;type<br><b>Types:</b> <code>c</code> call · <code>p</code> put · <code>cs</code> call spread · <code>ps</code> put spread</div></span>
       </div>
       <div class="mkt-row" id="expiryRow" style="display:none;">
         <select class="mkt-select" id="expirySelect" onchange="fetchChain()">
@@ -1545,13 +1545,13 @@ function parseOptionFormula(input){
   if(parts.length<4)return null;
   const ticker=parts[0].toUpperCase();
   const expiryStr=parts[1];
-  const expiryMatch=expiryStr.match(/^(\d{2})([a-z]{3})(\d{1,2})?$/);
+  const expiryMatch=expiryStr.match(/^(\d{1,2})?([a-z]{3})(\d{2})$/);
   if(!expiryMatch)return null;
-  const year=2000+parseInt(expiryMatch[1]);
+  const day=expiryMatch[1]?expiryMatch[1].padStart(2,'0'):null;
   const month=MONTH_MAP[expiryMatch[2]];
   if(!month)return null;
   const monthName=MONTH_NAMES[expiryMatch[2]];
-  const day=expiryMatch[3]?expiryMatch[3].padStart(2,'0'):null;
+  const year=2000+parseInt(expiryMatch[3]);
   // Last part is the type: c, p, cs, ps
   const typePart=parts[parts.length-1];
   if(!/^(c|p|cs|ps)$/.test(typePart))return null;
