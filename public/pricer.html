@@ -1007,17 +1007,23 @@ const currentPriceLinePlugin={
       }
     }
 
-    // Experimental spot line (amber) — only when slider differs from live
+    // Spot line — always show current spot (amber when different from live, blue when no live)
     const expSpot=typeof getS==='function'?getS():null;
-    if(expSpot&&liveStockPrice&&Math.abs(expSpot-liveStockPrice)/liveStockPrice>0.005){
-      const x=pxFor(expSpot);
-      if(x!==null){
-        const pct=((expSpot-liveStockPrice)/liveStockPrice*100);
-        ctx.save();ctx.beginPath();ctx.setLineDash([6,3]);
-        ctx.strokeStyle='rgba(217,119,6,0.7)';ctx.lineWidth=1.5;
-        ctx.moveTo(x,top);ctx.lineTo(x,bottom);ctx.stroke();
-        if(meta.showLabel){ctx.setLineDash([]);ctx.fillStyle='#D97706';ctx.font='bold 9px JetBrains Mono';ctx.textAlign='center';ctx.fillText('$'+expSpot.toFixed(0)+' ('+(pct>=0?'+':'')+pct.toFixed(1)+'%)',x,bottom+12);}
-        ctx.restore();
+    if(expSpot){
+      const showAsExperimental=liveStockPrice&&Math.abs(expSpot-liveStockPrice)/liveStockPrice>0.005;
+      const showAsDefault=!liveStockPrice;
+      if(showAsExperimental||showAsDefault){
+        const x=pxFor(expSpot);
+        if(x!==null){
+          ctx.save();ctx.beginPath();ctx.setLineDash([6,3]);
+          ctx.strokeStyle=showAsDefault?'rgba(37,99,235,0.5)':'rgba(217,119,6,0.7)';ctx.lineWidth=1.5;
+          ctx.moveTo(x,top);ctx.lineTo(x,bottom);ctx.stroke();
+          if(meta.showLabel&&showAsExperimental){
+            const pct=((expSpot-liveStockPrice)/liveStockPrice*100);
+            ctx.setLineDash([]);ctx.fillStyle='#D97706';ctx.font='bold 9px JetBrains Mono';ctx.textAlign='center';ctx.fillText('$'+expSpot.toFixed(0)+' ('+(pct>=0?'+':'')+pct.toFixed(1)+'%)',x,bottom+12);
+          }
+          ctx.restore();
+        }
       }
     }
   }
@@ -1198,7 +1204,7 @@ function setMiniAxis(greek,axis,btn){
 
 function makeMiniChart(canvasId,color){
   const ctx=document.getElementById(canvasId).getContext('2d');
-  return new Chart(ctx,{type:'line',data:{labels:[],datasets:[{data:[],borderColor:color,borderWidth:1.5,tension:0.3,pointRadius:0,fill:false}]},options:{responsive:true,maintainAspectRatio:false,resizeDelay:100,animation:NO_ANIM,transitions:{resize:{animation:RESIZE_ANIM}},plugins:{legend:{display:false},tooltip:{enabled:false},currentPriceLine:{show:true,showLabel:false}},scales:{x:{display:false},y:{display:false}}}});
+  return new Chart(ctx,{type:'line',data:{labels:[],datasets:[{data:[],borderColor:color,borderWidth:1.5,tension:0.3,pointRadius:0,fill:false}]},options:{responsive:true,maintainAspectRatio:false,resizeDelay:100,animation:NO_ANIM,transitions:{resize:{animation:RESIZE_ANIM}},plugins:{legend:{display:false},tooltip:{enabled:false},currentPriceLine:{show:true,showLabel:false}},scales:{x:{display:true,ticks:{font:{size:8,family:'JetBrains Mono'},color:'#9CA3AF',maxTicksLimit:5,maxRotation:0},grid:{display:false}},y:{display:true,ticks:{font:{size:8,family:'JetBrains Mono'},color:'#9CA3AF',maxTicksLimit:4},grid:{color:'rgba(0,0,0,0.04)'}}}}});
 }
 function updateMini(chart,labels,data){chart.data.labels=labels;chart.data.datasets[0].data=data;chart.update('none');}
 
