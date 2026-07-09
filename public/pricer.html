@@ -235,6 +235,14 @@ input[type=range]:hover::-webkit-slider-thumb{background:var(--blue);}
 /* hidden */
 .hidden{display:none!important;}
 
+/* collapsible sections */
+.p-heading-collapse{cursor:pointer;display:flex;align-items:center;justify-content:space-between;user-select:none;}
+.p-heading-collapse::after{content:'▾';font-size:9px;color:var(--text-dim);transition:transform 0.2s;}
+.p-heading-collapse.collapsed::after{transform:rotate(-90deg);}
+.collapsible-body{overflow:hidden;}
+.chain-minimize{font-family:var(--mono);font-size:8px;font-weight:600;padding:2px 6px;border:1px solid var(--border);border-radius:2px;background:transparent;color:var(--text-dim);cursor:pointer;letter-spacing:0.04em;}
+.chain-minimize:hover{border-color:var(--blue);color:var(--blue);}
+
 /* friday */
 .friday-overlay{position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;pointer-events:none;}
 .friday-text{font-family:var(--mono);font-weight:900;color:#fff;text-align:center;text-shadow:0 0 40px rgba(37,99,235,0.8),0 0 80px rgba(124,58,237,0.6);animation:fridayPulse 0.5s ease infinite alternate;}
@@ -352,7 +360,10 @@ input[type=range]:hover::-webkit-slider-thumb{background:var(--blue);}
       <div id="chainWrap" class="hidden">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;">
           <span style="font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:0.1em;color:var(--text-dim);">OPTIONS CHAIN</span>
-          <button class="mkt-toggle" onclick="toggleChainType()" id="chainTypeBtn">Show puts</button>
+          <div style="display:flex;gap:4px;align-items:center;">
+            <button class="mkt-toggle" onclick="toggleChainType()" id="chainTypeBtn">Show puts</button>
+            <button class="chain-minimize" onclick="minimizeChain()" title="Minimize chain">−</button>
+          </div>
         </div>
         <div class="chain-scroll" id="chainScroll">
           <table class="chain-table">
@@ -370,6 +381,8 @@ input[type=range]:hover::-webkit-slider-thumb{background:var(--blue);}
         <div class="slider-meta"><span class="slider-name">Spot price <em>(S)</em> <span id="spotTrackBadge" class="hidden" style="font-family:var(--mono);font-size:8px;font-weight:700;letter-spacing:0.06em;padding:1px 5px;border-radius:2px;cursor:pointer;vertical-align:middle;" onclick="toggleSpotTracking()"></span></span><span class="slider-value" id="lbl-S">$100</span></div>
         <input type="range" id="sl-S" min="1" max="500" step="1" value="100">
       </div>
+      <div class="p-heading p-heading-collapse" onclick="toggleSection('rangeBody',this)" style="font-size:8px;margin-top:4px;">RANGE &amp; PRESETS</div>
+      <div class="collapsible-body" id="rangeBody">
       <div class="slider-group" style="margin-bottom:4px;">
         <div style="display:flex;gap:4px;align-items:center;font-size:10px;color:var(--text-dim);">
           <span>Range</span>
@@ -388,10 +401,12 @@ input[type=range]:hover::-webkit-slider-thumb{background:var(--blue);}
           <button class="strat-btn" style="padding:2px 6px;font-size:9px;" onclick="setSpotPreset(100,5000,10)">$100–5K</button>
         </div>
       </div>
+      </div>
     </div>
 
-    <div class="anim-section">
-      <div class="p-heading">ANIMATE</div>
+    <div class="anim-section" id="animSection">
+      <div class="p-heading p-heading-collapse" onclick="toggleSection('animBody',this)">ANIMATE</div>
+      <div class="collapsible-body" id="animBody">
       <div class="anim-row">
         <button class="anim-btn" id="anim-spot-btn" onclick="toggleAnim('spot')" title="Animate spot price">
           <svg viewBox="0 0 24 24"><polygon id="anim-spot-icon" points="8,5 19,12 8,19"/></svg>
@@ -423,6 +438,7 @@ input[type=range]:hover::-webkit-slider-thumb{background:var(--blue);}
         <span style="font-size:11px;color:var(--text-secondary);">Both</span>
         <button class="strat-btn" style="padding:3px 8px;font-size:10px;margin-left:auto;" onclick="resetAnims()">Reset</button>
       </div>
+      </div>
     </div>
 
     <!-- Single-leg inputs -->
@@ -442,8 +458,9 @@ input[type=range]:hover::-webkit-slider-thumb{background:var(--blue);}
           <input type="range" id="sl-T" min="1" max="730" step="1" value="30">
         </div>
       </div>
-      <div class="p-section">
-        <div class="p-heading">RATES &amp; CARRY</div>
+      <div class="p-section" id="ratesSection">
+        <div class="p-heading p-heading-collapse" onclick="toggleSection('ratesBody',this)">RATES &amp; CARRY</div>
+        <div class="collapsible-body" id="ratesBody">
         <div class="slider-group">
           <div class="slider-meta"><span class="slider-name">Risk-free rate <em>(r)</em></span><span class="slider-value" id="lbl-r">4.0%</span></div>
           <input type="range" id="sl-r" min="0" max="15" step="0.1" value="4">
@@ -452,14 +469,16 @@ input[type=range]:hover::-webkit-slider-thumb{background:var(--blue);}
           <div class="slider-meta"><span class="slider-name">Dividend yield <em>(q)</em></span><span class="slider-value" id="lbl-q">0.0%</span></div>
           <input type="range" id="sl-q" min="0" max="10" step="0.1" value="0">
         </div>
+        </div>
       </div>
     </div>
 
     <!-- Multi-leg: strategy picker + rates + leg builder -->
     <div id="multiInputs" class="hidden">
 
-      <div class="p-section">
-        <div class="p-heading">RATES &amp; CARRY</div>
+      <div class="p-section" id="ratesMultiSection">
+        <div class="p-heading p-heading-collapse" onclick="toggleSection('ratesMultiBody',this)">RATES &amp; CARRY</div>
+        <div class="collapsible-body" id="ratesMultiBody">
         <div class="slider-group">
           <div class="slider-meta"><span class="slider-name">Risk-free rate <em>(r)</em></span><span class="slider-value" id="lbl-rm">4.0%</span></div>
           <input type="range" id="sl-rm" min="0" max="15" step="0.1" value="4">
@@ -467,6 +486,7 @@ input[type=range]:hover::-webkit-slider-thumb{background:var(--blue);}
         <div class="slider-group">
           <div class="slider-meta"><span class="slider-name">Dividend yield <em>(q)</em></span><span class="slider-value" id="lbl-qm">0.0%</span></div>
           <input type="range" id="sl-qm" min="0" max="10" step="0.1" value="0">
+        </div>
         </div>
       </div>
 
@@ -1686,7 +1706,7 @@ async function handleFormula(f){
             <td style="color:var(--blue);font-size:9px;">USE</td></tr>`;
         }).join('');
         const chainWrap=document.getElementById('chainWrap');
-        chainWrap.innerHTML=`<div style="margin-top:8px;">${hdr}</div>
+        chainWrap.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;">${hdr}<button class="chain-minimize" onclick="minimizeChain()" title="Minimize chain">−</button></div>
           <div class="chain-scroll" id="chainScroll"><table class="chain-table"><thead>${thead}</thead><tbody>${tbody}</tbody></table></div>`;
         chainWrap.classList.remove('hidden');
         populateExpiryDropdown(monthExps);
@@ -1725,7 +1745,7 @@ async function handleFormula(f){
           <td style="color:var(--blue);font-size:9px;">USE</td></tr>`;
       }).join('');
       const chainWrap=document.getElementById('chainWrap');
-      chainWrap.innerHTML=`<div style="margin-top:8px;">${hdr}</div>
+      chainWrap.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;">${hdr}<button class="chain-minimize" onclick="minimizeChain()" title="Minimize chain">−</button></div>
         <div class="chain-scroll" id="chainScroll"><table class="chain-table"><thead>${thead}</thead><tbody>${tbody}</tbody></table></div>`;
       chainWrap.classList.remove('hidden');
       populateExpiryDropdown(monthExps);
@@ -1985,7 +2005,10 @@ function restoreChainWrap(){
   if(!document.getElementById('chainBody')){
     cw.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;">
       <span style="font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:0.1em;color:var(--text-dim);">OPTIONS CHAIN</span>
-      <button class="mkt-toggle" onclick="toggleChainType()" id="chainTypeBtn">Show puts</button>
+      <div style="display:flex;gap:4px;align-items:center;">
+        <button class="mkt-toggle" onclick="toggleChainType()" id="chainTypeBtn">Show puts</button>
+        <button class="chain-minimize" onclick="minimizeChain()" title="Minimize chain">−</button>
+      </div>
     </div><div class="chain-scroll" id="chainScroll"><table class="chain-table">
       <thead><tr><th>Strike</th><th>Bid</th><th>Ask</th><th>IV</th><th>Vol</th><th>OI</th><th></th></tr></thead>
       <tbody id="chainBody"></tbody></table></div>`;
@@ -2462,6 +2485,55 @@ function triggerFriday(){
     document.getElementById('tickerInput').value='';
   },5000);
 }
+
+const collapsibleIds=['rangeBody','animBody','ratesBody','ratesMultiBody'];
+
+function toggleSection(bodyId,heading){
+  const body=document.getElementById(bodyId);
+  if(!body)return;
+  const isCollapsed=body.style.display==='none';
+  body.style.display=isCollapsed?'':'none';
+  if(heading){
+    if(isCollapsed)heading.classList.remove('collapsed');
+    else heading.classList.add('collapsed');
+  }
+}
+
+function collapseAllSections(){
+  collapsibleIds.forEach(id=>{
+    const body=document.getElementById(id);
+    if(!body)return;
+    body.style.display='none';
+    const heading=body.previousElementSibling;
+    if(heading?.classList.contains('p-heading-collapse'))heading.classList.add('collapsed');
+  });
+}
+
+function expandAllSections(){
+  collapsibleIds.forEach(id=>{
+    const body=document.getElementById(id);
+    if(!body)return;
+    body.style.display='';
+    const heading=body.previousElementSibling;
+    if(heading?.classList.contains('p-heading-collapse'))heading.classList.remove('collapsed');
+  });
+}
+
+function minimizeChain(){
+  const wrap=document.getElementById('chainWrap');
+  if(wrap){
+    wrap.classList.add('hidden');
+    expandAllSections();
+  }
+}
+
+(function(){
+  const cw=document.getElementById('chainWrap');
+  if(!cw)return;
+  new MutationObserver(()=>{
+    if(!cw.classList.contains('hidden'))collapseAllSections();
+  }).observe(cw,{attributes:true,attributeFilter:['class']});
+})();
 </script>
 </body>
 </html>
