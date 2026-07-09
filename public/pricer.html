@@ -48,7 +48,7 @@ html,body{background:var(--bg);color:var(--text-primary);font-family:var(--sans)
 .aux-item span{color:var(--text-secondary);margin-left:3px;}
 
 /* 3-col main */
-.main{display:grid;grid-template-columns:250px 1fr 190px;min-height:0;overflow:hidden;transition:grid-template-columns 0.2s ease;}
+.main{display:grid;grid-template-columns:272px 1fr 220px;min-height:0;overflow:hidden;transition:grid-template-columns 0.2s ease;}
 
 /* left panel */
 .panel-left{border-right:1px solid var(--border);overflow-y:auto;background:var(--bg1);display:flex;flex-direction:column;scrollbar-width:thin;scrollbar-color:var(--border-hi) transparent;}
@@ -108,7 +108,7 @@ input[type=range]:hover::-webkit-slider-thumb{background:var(--blue);}
 .chart-tab{padding:10px 0;margin-right:18px;font-size:12px;color:var(--text-dim);cursor:pointer;border:none;border-bottom:2px solid transparent;background:none;font-family:var(--sans);white-space:nowrap;}
 .chart-tab:hover{color:var(--text-secondary);}
 .chart-tab.active{color:var(--text-primary);border-bottom-color:var(--blue);}
-.main-chart-wrap{flex-shrink:0;padding:8px 16px 4px;position:relative;height:220px;transition:height 0.2s ease;}
+.main-chart-wrap{flex-shrink:0;padding:12px 16px 8px;position:relative;height:200px;transition:height 0.2s ease;}
 .main-chart-wrap canvas{display:block;}
 .chart-footer{padding:5px 16px 7px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:16px;flex-shrink:0;flex-wrap:wrap;}
 .legend-item{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text-dim);}
@@ -671,8 +671,6 @@ let chartMode='payoff';
 let savedSingleState=null;
 let savedMultiState=null;
 let mainChart=null;
-let lockedYBounds=null;
-let shouldLockY=false;
 const miniCharts={};
 const NO_ANIM={duration:0};
 const RESIZE_ANIM={duration:200,easing:'easeOutQuart'};
@@ -714,7 +712,6 @@ function setSpotPreset(mn,mx,st){
   if(cur>mx)sl.value=mx;
   document.getElementById('lbl-Srange').textContent=mn+' – '+mx;
   syncStrikeRange(mn,mx,st);
-  lockedYBounds=null;shouldLockY=true;
   update();
 }
 function syncStrikeRange(mn,mx,st){
@@ -792,7 +789,6 @@ function setMode(m){
   document.getElementById('aux-d2-wrap').classList.toggle('hidden',m==='multi');
   restoreModeState();
   rebuildTabs();
-  lockedYBounds=null;shouldLockY=true;
   update();
 }
 
@@ -827,7 +823,6 @@ function setSingleType(t){
   singleType=t;
   document.getElementById('btn-call').classList.toggle('active',t==='call');
   document.getElementById('btn-put').classList.toggle('active',t==='put');
-  lockedYBounds=null;shouldLockY=true;
   update();
 }
 
@@ -845,8 +840,6 @@ function rebuildTabs(){
 
 function setChart(m){
   chartMode=m;
-  lockedYBounds=null;
-  shouldLockY=true;
   document.querySelectorAll('.chart-tab').forEach(el=>el.classList.toggle('active',el.id==='tab-'+m));
   update();
 }
@@ -1068,11 +1061,7 @@ const currentPriceLinePlugin={
 Chart.register(currentPriceLinePlugin);
 
 /* ── Chart helpers ───────────────────────── */
-function baseScales(xCb,yCb){
-  const yAxis={ticks:{color:TC,font:TF,maxTicksLimit:5,callback:yCb},grid:{color:GC},border:{color:AC}};
-  if(lockedYBounds){yAxis.min=lockedYBounds.min;yAxis.max=lockedYBounds.max;}
-  return{x:{ticks:{color:TC,font:TF,maxTicksLimit:6,callback:xCb},grid:{color:GC},border:{color:AC}},y:yAxis};
-}
+function baseScales(xCb,yCb){return{x:{ticks:{color:TC,font:TF,maxTicksLimit:6,callback:xCb},grid:{color:GC},border:{color:AC}},y:{ticks:{color:TC,font:TF,maxTicksLimit:5,callback:yCb},grid:{color:GC},border:{color:AC}}};}
 function fmtD(v){return(v>=0?'$':'-$')+Math.abs(v).toFixed(2);}
 function fmtG(v){return(v>=0?'':'')+v.toFixed(4);}
 function setBar(id,val,max){const el=document.getElementById(id);if(el)el.style.width=Math.min(Math.abs(val)/max*100,100).toFixed(1)+'%';}
@@ -1193,17 +1182,6 @@ function drawMainChart(S,r,q,singleRes,singlePremium){
       });
       datasets=[{label:'Net '+greek,data:netData,borderColor:{delta:'#2563EB',gamma:'#7C3AED',vega:'#D97706',theta:'#DC2626'}[greek]||'#2563EB',borderWidth:2,tension:0.2,pointRadius:0,fill:false}];
     }
-  }
-
-  // Lock y-axis bounds on tab switch / first render / option load
-  if(shouldLockY||!lockedYBounds){
-    const allVals=datasets.flatMap(ds=>ds.data.filter(v=>v!=null&&isFinite(v)));
-    if(allVals.length>0){
-      const dMin=Math.min(...allVals),dMax=Math.max(...allVals);
-      const pad=Math.max((dMax-dMin)*0.1,0.01);
-      lockedYBounds={min:Math.floor((dMin-pad)*100)/100,max:Math.ceil((dMax+pad)*100)/100};
-    }
-    shouldLockY=false;
   }
 
   const yCb=chartMode==='iv_smile'?v=>v.toFixed(1)+'%':chartMode==='pdf'?v=>v.toFixed(4):v=>isDollar?(v>=0?'$':'-$')+Math.abs(v).toFixed(1):v.toFixed(3);
