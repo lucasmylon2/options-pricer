@@ -2491,8 +2491,8 @@ function triggerChud(){
   let chudActive=true;
   const allCharts=[mainChart,...Object.values(miniCharts)].filter(Boolean);
 
-  // Save original data for each chart
-  const saved=allCharts.map(ch=>ch.data.datasets.map(ds=>[...ds.data]));
+  // Save original data, colors, and line widths for each chart
+  const saved=allCharts.map(ch=>ch.data.datasets.map(ds=>({data:[...ds.data],color:ds.borderColor,width:ds.borderWidth})));
 
   // Scramble loop — randomize chart data rapidly
   const colors=['#e94560','#a855f7','#38bdf8','#ffd460','#00ff88','#ff6b6b','#7C3AED','#DC2626'];
@@ -2529,7 +2529,11 @@ function triggerChud(){
     chudActive=false;
     allCharts.forEach((ch,ci)=>{
       ch.data.datasets.forEach((ds,di)=>{
-        if(saved[ci]&&saved[ci][di])ds.data=saved[ci][di];
+        if(saved[ci]&&saved[ci][di]){
+          ds.data=saved[ci][di].data;
+          ds.borderColor=saved[ci][di].color;
+          ds.borderWidth=saved[ci][di].width;
+        }
       });
     });
     update();
