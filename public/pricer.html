@@ -253,6 +253,12 @@ input[type=range]:hover::-webkit-slider-thumb{background:var(--blue);}
 .friday-bg{position:fixed;inset:0;z-index:99998;animation:fridayBg 1s linear infinite;}
 .confetti{position:fixed;z-index:99999;pointer-events:none;}
 
+/* spokes */
+.heart-rain{position:fixed;z-index:99999;pointer-events:none;font-size:24px;top:-40px;animation:heartFall linear forwards;}
+@keyframes heartFall{0%{transform:translateY(0) rotate(0deg);opacity:1}85%{opacity:1}100%{transform:translateY(110vh) rotate(360deg);opacity:0}}
+.spokes-bg{position:fixed;inset:0;z-index:99997;background:rgba(255,182,193,0.15);pointer-events:none;animation:spokesPulse 1s ease infinite alternate;}
+@keyframes spokesPulse{from{background:rgba(255,182,193,0.1)}to{background:rgba(255,105,135,0.15)}}
+
 /* tour */
 .tour-overlay{position:fixed;inset:0;z-index:9998;pointer-events:none;}
 .tour-highlight{position:fixed;z-index:9999;border-radius:6px;box-shadow:0 0 0 9999px rgba(0,0,0,0.45);pointer-events:none;transition:all 0.3s ease;}
@@ -1313,7 +1319,9 @@ function computeNetGreekAtSpot(sp,r,q){
 }
 
 /* ── Main update ─────────────────────────── */
+let easterEggActive=false;
 function update(){
+  if(easterEggActive)return;
   const S=getS();
   const r=getR(),q=getQ();
 
@@ -1864,6 +1872,7 @@ async function fetchQuote(){
   const raw=document.getElementById('tickerInput').value.trim();
   if(raw.toLowerCase()==='friday'){triggerFriday();return;}
   if(raw.toLowerCase()==='chud'){triggerChud();return;}
+  if(raw.toLowerCase()==='spokes'){triggerSpokes();return;}
   const formula=parseOptionFormula(raw);
   if(formula)return handleFormula(formula);
   const ticker=raw.toUpperCase();
@@ -2487,7 +2496,15 @@ function triggerFriday(){
   },5000);
 }
 
+const MINI_COLORS={delta:'#2563EB',gamma:'#7C3AED',vega:'#D97706',theta:'#DC2626',rho:'#059669',vanna:'#0891B2',volga:'#E11D48'};
+function resetMiniChartColors(){
+  Object.entries(miniCharts).forEach(([g,ch])=>{
+    if(ch&&ch.data.datasets[0]){ch.data.datasets[0].borderColor=MINI_COLORS[g];ch.data.datasets[0].borderWidth=1.5;}
+  });
+}
+
 function triggerChud(){
+  easterEggActive=true;
   let chudActive=true;
   const allCharts=[mainChart,...Object.values(miniCharts)].filter(Boolean);
 
@@ -2527,6 +2544,7 @@ function triggerChud(){
   // Restore after 5 seconds
   setTimeout(()=>{
     chudActive=false;
+    easterEggActive=false;
     allCharts.forEach((ch,ci)=>{
       ch.data.datasets.forEach((ds,di)=>{
         if(saved[ci]&&saved[ci][di]){
@@ -2536,7 +2554,98 @@ function triggerChud(){
         }
       });
     });
+    resetMiniChartColors();
     update();
+  },5000);
+}
+
+function triggerSpokes(){
+  easterEggActive=true;
+  const allCharts=[mainChart,...Object.values(miniCharts)].filter(Boolean);
+  let spokesActive=true;
+
+  // Save original data, colors, widths
+  const saved=allCharts.map(ch=>ch.data.datasets.map(ds=>({data:[...ds.data],color:ds.borderColor,width:ds.borderWidth})));
+
+  // Heart silhouette: two semicircle bumps + V-shaped bottom
+  function heartData(n){
+    const pts=[];
+    for(let i=0;i<n;i++){
+      const x=(i/(n-1))*2-1; // -1 to 1
+      // Two semicircular bumps (radius 0.5, centered at ±0.5)
+      const r=0.5;
+      const leftD=Math.sqrt(Math.max(0,r*r-(x+0.5)*(x+0.5)));
+      const rightD=Math.sqrt(Math.max(0,r*r-(x-0.5)*(x-0.5)));
+      const bumps=Math.max(leftD,rightD);
+      // V-shaped bottom pointing down
+      const v=-Math.abs(x)*0.8+0.3;
+      pts.push(bumps*1.8+v);
+    }
+    return pts;
+  }
+
+  // Morph charts into hearts with pulsing
+  const pinks=['#ff6b9d','#e91e63','#ff1744','#f50057','#ff4081','#ec407a'];
+  let frame=0;
+  function heartBeat(){
+    if(!spokesActive)return;
+    frame++;
+    const pulse=1+Math.sin(frame*0.2)*0.12;
+    allCharts.forEach((ch,ci)=>{
+      ch.data.datasets.forEach(ds=>{
+        const n=ds.data.length;
+        const heart=heartData(n);
+        const origMax=Math.max(...saved[ci][0].data.map(v=>Math.abs(v)))||1;
+        const scale=origMax*pulse;
+        ds.data=heart.map(v=>v*scale);
+        ds.borderColor=pinks[frame%pinks.length];
+        ds.borderWidth=2.5;
+      });
+      ch.update('none');
+    });
+    setTimeout(heartBeat,100);
+  }
+  heartBeat();
+
+  // Heart rain
+  const hearts=[];
+  const heartChars=['❤️','\u{1F497}','\u{1F496}','\u{1F495}','\u{1F49E}','\u{1F49D}','\u{1F48C}'];
+  for(let i=0;i<60;i++){
+    const h=document.createElement('div');
+    h.className='heart-rain';
+    h.textContent=heartChars[Math.floor(Math.random()*heartChars.length)];
+    h.style.left=Math.random()*100+'vw';
+    h.style.fontSize=(16+Math.random()*24)+'px';
+    h.style.animationDuration=(2+Math.random()*3)+'s';
+    h.style.animationDelay=(Math.random()*4)+'s';
+    document.body.appendChild(h);
+    hearts.push(h);
+  }
+
+  // Pink background overlay
+  const bg=document.createElement('div');
+  bg.className='spokes-bg';
+  document.body.appendChild(bg);
+
+  document.getElementById('tickerInput').value='';
+
+  // Restore after 5 seconds
+  setTimeout(()=>{
+    spokesActive=false;
+    easterEggActive=false;
+    allCharts.forEach((ch,ci)=>{
+      ch.data.datasets.forEach((ds,di)=>{
+        if(saved[ci]&&saved[ci][di]){
+          ds.data=saved[ci][di].data;
+          ds.borderColor=saved[ci][di].color;
+          ds.borderWidth=saved[ci][di].width;
+        }
+      });
+    });
+    resetMiniChartColors();
+    update();
+    hearts.forEach(h=>h.remove());
+    bg.remove();
   },5000);
 }
 
