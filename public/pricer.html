@@ -2805,51 +2805,6 @@ function triggerChud(){
 }
 
 function triggerSpokes(){
-  easterEggActive=true;
-  const allCharts=[mainChart,...Object.values(miniCharts)].filter(Boolean);
-  let spokesActive=true;
-
-  // Save original data, colors, widths, AND labels
-  const saved=allCharts.map(ch=>({
-    labels:[...ch.data.labels],
-    datasets:ch.data.datasets.map(ds=>({data:[...ds.data],color:ds.borderColor,width:ds.borderWidth}))
-  }));
-
-  // Parametric heart curve — traces a closed heart shape
-  function heartCurve(n){
-    const xs=[],ys=[];
-    for(let i=0;i<n;i++){
-      const t=(i/n)*2*Math.PI;
-      xs.push(16*Math.pow(Math.sin(t),3));
-      ys.push(13*Math.cos(t)-5*Math.cos(2*t)-2*Math.cos(3*t)-Math.cos(4*t));
-    }
-    return{xs,ys};
-  }
-
-  const pinks=['#ff6b9d','#e91e63','#ff1744','#f50057','#ff4081','#ec407a'];
-  let frame=0;
-  function heartBeat(){
-    if(!spokesActive)return;
-    frame++;
-    const pulse=1+Math.sin(frame*0.2)*0.12;
-    allCharts.forEach((ch,ci)=>{
-      const n=ch.data.labels.length;
-      const heart=heartCurve(n);
-      ch.data.labels=heart.xs.map(v=>(v*pulse).toFixed(1));
-      ch.data.datasets.forEach(ds=>{
-        ds.data=heart.ys.map(v=>v*pulse);
-        ds.borderColor=pinks[frame%pinks.length];
-        ds.borderWidth=2.5;
-      });
-      ch.options.scales.x.display=false;
-      ch.options.scales.y.display=false;
-      ch.update('none');
-    });
-    setTimeout(heartBeat,100);
-  }
-  heartBeat();
-
-  // Heart rain
   const hearts=[];
   const heartChars=['❤️','\u{1F497}','\u{1F496}','\u{1F495}','\u{1F49E}','\u{1F49D}','\u{1F48C}'];
   for(let i=0;i<60;i++){
@@ -2863,35 +2818,11 @@ function triggerSpokes(){
     document.body.appendChild(h);
     hearts.push(h);
   }
-
-  // Pink background overlay
   const bg=document.createElement('div');
   bg.className='spokes-bg';
   document.body.appendChild(bg);
-
   document.getElementById('tickerInput').value='';
-
-  // Restore after 5 seconds
-  setTimeout(()=>{
-    spokesActive=false;
-    easterEggActive=false;
-    allCharts.forEach((ch,ci)=>{
-      ch.data.labels=saved[ci].labels;
-      ch.data.datasets.forEach((ds,di)=>{
-        if(saved[ci].datasets[di]){
-          ds.data=saved[ci].datasets[di].data;
-          ds.borderColor=saved[ci].datasets[di].color;
-          ds.borderWidth=saved[ci].datasets[di].width;
-        }
-      });
-      ch.options.scales.x.display=true;
-      ch.options.scales.y.display=true;
-    });
-    resetMiniChartColors();
-    update();
-    hearts.forEach(h=>h.remove());
-    bg.remove();
-  },5000);
+  setTimeout(()=>{hearts.forEach(h=>h.remove());bg.remove();},5000);
 }
 
 const collapsibleIds=['rangeBody','animBody','ratesBody','ratesMultiBody'];
