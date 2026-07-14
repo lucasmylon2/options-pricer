@@ -243,6 +243,27 @@ input[type=range]:hover::-webkit-slider-thumb{background:var(--blue);}
 .chain-minimize{font-family:var(--mono);font-size:8px;font-weight:600;padding:2px 6px;border:1px solid var(--border);border-radius:2px;background:transparent;color:var(--text-dim);cursor:pointer;letter-spacing:0.04em;}
 .chain-minimize:hover{border-color:var(--blue);color:var(--blue);}
 
+/* vol analysis */
+.vol-analysis{display:none;flex:1;min-height:0;overflow-y:auto;padding:16px;scrollbar-width:thin;scrollbar-color:var(--border-hi) transparent;}
+.vol-analysis.active{display:block;}
+.va-toolbar{display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap;}
+.va-input{font-family:var(--mono);font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:3px;background:var(--bg1);color:var(--text-primary);width:90px;text-transform:uppercase;}
+.va-btn{font-family:var(--mono);font-size:10px;font-weight:700;padding:5px 12px;border:none;border-radius:3px;cursor:pointer;letter-spacing:0.05em;}
+.va-btn-primary{background:var(--blue);color:white;}
+.va-btn-primary:hover{background:#1d4ed8;}
+.va-btn-primary:disabled{opacity:0.5;cursor:default;}
+.va-select{font-family:var(--mono);font-size:11px;padding:4px 6px;border:1px solid var(--border);border-radius:3px;background:var(--bg1);color:var(--text-primary);}
+.va-toggle{display:flex;border:1px solid var(--border);border-radius:3px;overflow:hidden;}
+.va-toggle button{font-family:var(--mono);font-size:10px;font-weight:600;padding:4px 10px;border:none;background:var(--bg1);color:var(--text-dim);cursor:pointer;}
+.va-toggle button.active{background:var(--blue);color:white;}
+.va-status{font-family:var(--mono);font-size:10px;color:var(--text-dim);margin-left:auto;}
+.va-charts{display:grid;grid-template-columns:1fr;gap:16px;}
+.va-chart-card{background:var(--bg1);border:1px solid var(--border);border-radius:4px;padding:12px;}
+.va-chart-title{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:0.1em;color:var(--text-dim);margin-bottom:8px;}
+.va-chart-wrap{height:280px;position:relative;}
+.va-chart-wrap canvas{display:block;}
+.va-empty{font-family:var(--mono);font-size:11px;color:var(--text-dim);text-align:center;padding:60px 20px;line-height:1.8;}
+
 /* friday */
 .friday-overlay{position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;pointer-events:none;}
 .friday-text{font-family:var(--mono);font-weight:900;color:#fff;text-align:center;text-shadow:0 0 40px rgba(37,99,235,0.8),0 0 80px rgba(124,58,237,0.6);animation:fridayPulse 0.5s ease infinite alternate;}
@@ -532,6 +553,34 @@ input[type=range]:hover::-webkit-slider-thumb{background:var(--blue);}
       <canvas id="mainChart" role="img" aria-label="Main options chart"></canvas>
     </div>
     <div class="chart-footer" id="chartFooter"></div>
+    <!-- Vol Analysis Panel -->
+    <div class="vol-analysis" id="volAnalysis">
+      <div class="va-toolbar">
+        <input class="va-input" id="vaTicker" type="text" placeholder="AAPL" />
+        <button class="va-btn va-btn-primary" id="vaFetchBtn" onclick="vaFetch()">FETCH</button>
+        <select class="va-select" id="vaExpiry" style="display:none;" onchange="vaDrawSkew()"><option value="">Expiry...</option></select>
+        <div class="va-toggle" id="vaTypeToggle" style="display:none;">
+          <button class="active" onclick="vaSetType('call',this)">Calls</button>
+          <button onclick="vaSetType('put',this)">Puts</button>
+        </div>
+        <div class="va-toggle" id="vaViewToggle" style="display:none;">
+          <button class="active" onclick="vaSetView('skew',this)">Skew</button>
+          <button onclick="vaSetView('term',this)">Term Structure</button>
+        </div>
+        <span class="va-status" id="vaStatus"></span>
+      </div>
+      <div class="va-charts">
+        <div class="va-chart-card" id="vaSkewCard">
+          <div class="va-chart-title">IV SKEW — <span id="vaSkewLabel">select expiry</span></div>
+          <div class="va-chart-wrap"><canvas id="vaSkewChart"></canvas></div>
+        </div>
+        <div class="va-chart-card" id="vaTermCard" style="display:none;">
+          <div class="va-chart-title">TERM STRUCTURE — <span id="vaTermLabel">ATM IV by expiry</span></div>
+          <div class="va-chart-wrap"><canvas id="vaTermChart"></canvas></div>
+        </div>
+      </div>
+      <div class="va-empty" id="vaEmpty">Enter a ticker and click FETCH to load vol data.<br>Pulls the options chain for skew and term structure analysis.</div>
+    </div>
     <div class="greek-charts-section">
       <div class="greek-grid">
         <div class="mini-chart-card">
@@ -833,7 +882,7 @@ function setSingleType(t){
 }
 
 /* ── Tabs ─────────────────────────────────── */
-const SINGLE_TABS=[{id:'payoff',label:'Payoff'},{id:'pnl',label:'P&L'},{id:'price',label:'Price vs spot'},{id:'delta',label:'Delta vs spot'},{id:'gamma',label:'Gamma vs spot'},{id:'vega',label:'Vega vs spot'},{id:'theta',label:'Theta decay'},{id:'iv_smile',label:'IV Smile'}];
+const SINGLE_TABS=[{id:'payoff',label:'Payoff'},{id:'pnl',label:'P&L'},{id:'price',label:'Price vs spot'},{id:'delta',label:'Delta vs spot'},{id:'gamma',label:'Gamma vs spot'},{id:'vega',label:'Vega vs spot'},{id:'theta',label:'Theta decay'},{id:'iv_smile',label:'IV Smile'},{id:'vol_analysis',label:'Vol Analysis'}];
 const MULTI_TABS=[{id:'pnl',label:'P&L at expiry'},{id:'delta',label:'Net Delta'},{id:'gamma',label:'Net Gamma'},{id:'vega',label:'Net Vega'},{id:'theta',label:'Net Theta'}];
 
 function rebuildTabs(){
@@ -847,7 +896,19 @@ function rebuildTabs(){
 function setChart(m){
   chartMode=m;
   document.querySelectorAll('.chart-tab').forEach(el=>el.classList.toggle('active',el.id==='tab-'+m));
-  update();
+  const va=document.getElementById('volAnalysis');
+  const mcw=document.querySelector('.main-chart-wrap');
+  const cf=document.getElementById('chartFooter');
+  const gs=document.querySelector('.greek-charts-section');
+  if(m==='vol_analysis'){
+    va.classList.add('active');
+    mcw.style.display='none';cf.style.display='none';gs.style.display='none';
+    if(currentTicker&&!document.getElementById('vaTicker').value)document.getElementById('vaTicker').value=currentTicker;
+  } else {
+    va.classList.remove('active');
+    mcw.style.display='';cf.style.display='';gs.style.display='';
+    update();
+  }
 }
 
 /* ── Leg management ──────────────────────── */
@@ -1321,7 +1382,7 @@ function computeNetGreekAtSpot(sp,r,q){
 /* ── Main update ─────────────────────────── */
 let easterEggActive=false;
 function update(){
-  if(easterEggActive)return;
+  if(easterEggActive||chartMode==='vol_analysis')return;
   const S=getS();
   const r=getR(),q=getQ();
 
@@ -2432,6 +2493,190 @@ if(!localStorage.getItem('optionsPricerTourSeen')){
 }
 
 /* ── Friday Mode ─────────────────────────── */
+/* ── Vol Analysis ────────────────────────── */
+let vaData={};
+let vaExpiries=[];
+let vaSpot=0;
+let vaType='call';
+let vaView='skew';
+let vaSkewChart=null;
+let vaTermChart=null;
+
+async function vaFetch(){
+  const ticker=document.getElementById('vaTicker').value.trim().toUpperCase();
+  if(!ticker){document.getElementById('vaStatus').textContent='Enter a ticker';return;}
+  const btn=document.getElementById('vaFetchBtn');
+  btn.disabled=true;
+  document.getElementById('vaStatus').textContent='Fetching expirations...';
+
+  try{
+    const q=await apiFetch('/api/tradier/quote?symbol='+encodeURIComponent(ticker));
+    if(q&&(q.last||q.underlying_price))vaSpot=q.last||q.underlying_price;
+
+    const expData=await apiFetch('/api/tradier/expirations?symbol='+encodeURIComponent(ticker));
+    if(!expData||!expData.expirations||expData.expirations.length===0){
+      document.getElementById('vaStatus').textContent='No expirations found';
+      btn.disabled=false;return;
+    }
+    vaExpiries=expData.expirations;
+    vaData={};
+
+    const maxExp=Math.min(vaExpiries.length,8);
+    document.getElementById('vaStatus').textContent='Loading chains (0/'+maxExp+')...';
+
+    for(let i=0;i<maxExp;i++){
+      const exp=vaExpiries[i];
+      const chain=await apiFetch('/api/tradier/chain?symbol='+encodeURIComponent(ticker)+'&expiration='+exp);
+      if(chain&&chain.contracts)vaData[exp]=chain.contracts;
+      document.getElementById('vaStatus').textContent='Loading chains ('+(i+1)+'/'+maxExp+')...';
+    }
+
+    const sel=document.getElementById('vaExpiry');
+    sel.innerHTML=vaExpiries.slice(0,maxExp).map(d=>{
+      const dte=Math.round((new Date(d+'T16:00:00')-new Date())/(1000*60*60*24));
+      return`<option value="${d}">${d} (${dte}d)</option>`;
+    }).join('');
+    sel.style.display='';
+    document.getElementById('vaTypeToggle').style.display='';
+    document.getElementById('vaViewToggle').style.display='';
+    document.getElementById('vaEmpty').style.display='none';
+
+    document.getElementById('vaStatus').textContent=maxExp+' expiries loaded';
+    vaDrawSkew();
+    vaDrawTerm();
+    vaShowView();
+  }catch(e){
+    document.getElementById('vaStatus').textContent='Error: '+e.message;
+  }
+  btn.disabled=false;
+}
+
+function vaSetType(t,el){
+  vaType=t;
+  el.parentElement.querySelectorAll('button').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  vaDrawSkew();
+  vaDrawTerm();
+}
+
+function vaSetView(v,el){
+  vaView=v;
+  el.parentElement.querySelectorAll('button').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  vaShowView();
+}
+
+function vaShowView(){
+  document.getElementById('vaSkewCard').style.display=vaView==='skew'?'':'none';
+  document.getElementById('vaTermCard').style.display=vaView==='term'?'':'none';
+}
+
+function vaDrawSkew(){
+  const exp=document.getElementById('vaExpiry').value;
+  const contracts=vaData[exp];
+  if(!contracts){return;}
+  const filtered=contracts.filter(c=>c.option_type===vaType&&c.implied_volatility>0).sort((a,b)=>a.strike-b.strike);
+  if(filtered.length===0)return;
+
+  const dte=Math.round((new Date(exp+'T16:00:00')-new Date())/(1000*60*60*24));
+  document.getElementById('vaSkewLabel').textContent=exp+' ('+dte+'d) — '+vaType+'s';
+
+  const labels=filtered.map(c=>c.strike.toFixed(0));
+  const ivData=filtered.map(c=>+(c.implied_volatility*100).toFixed(2));
+  const volData=filtered.map(c=>c.volume||0);
+
+  const xCb=(v,i)=>labels[i]!=null?'$'+labels[i]:'';
+  const yCb=v=>v.toFixed(1)+'%';
+
+  if(vaSkewChart){
+    vaSkewChart.data.labels=labels;
+    vaSkewChart.data.datasets[0].data=ivData;
+    if(vaSkewChart.data.datasets[1])vaSkewChart.data.datasets[1].data=volData;
+    vaSkewChart.options.scales=vaScales(xCb,yCb,volData);
+    vaSkewChart.update('none');
+  } else {
+    const ctx=document.getElementById('vaSkewChart').getContext('2d');
+    vaSkewChart=new Chart(ctx,{type:'line',data:{labels,datasets:[
+      {label:'IV %',data:ivData,borderColor:'#7C3AED',borderWidth:2,tension:0.3,pointRadius:3,pointBackgroundColor:'#7C3AED',fill:false,yAxisID:'y'},
+      {label:'Volume',data:volData,type:'bar',backgroundColor:'rgba(37,99,235,0.15)',borderColor:'rgba(37,99,235,0.3)',borderWidth:1,yAxisID:'y1'}
+    ]},options:{responsive:true,maintainAspectRatio:false,animation:false,interaction:{mode:'index',intersect:false},plugins:{legend:{display:true,labels:{font:{family:'JetBrains Mono',size:10},color:'#8B95A5',boxWidth:12}},tooltip:{backgroundColor:'#fff',borderColor:'rgba(0,0,0,0.12)',borderWidth:1,titleColor:'#4B5368',bodyColor:'#111318',padding:10,titleFont:{family:'JetBrains Mono',size:11},bodyFont:{family:'JetBrains Mono',size:12},callbacks:{title:c=>'Strike: $'+c[0].label,label:c=>c.datasetIndex===0?' IV: '+c.parsed.y.toFixed(2)+'%':' Vol: '+c.parsed.y.toLocaleString()}}},scales:vaScales(xCb,yCb,volData)}});
+  }
+
+  if(vaSpot>0){
+    const spotIdx=filtered.reduce((best,c,i)=>Math.abs(c.strike-vaSpot)<Math.abs(filtered[best].strike-vaSpot)?i:best,0);
+    vaSkewChart.options.plugins.annotation=vaSpotAnnotation(labels[spotIdx]);
+    vaSkewChart.update('none');
+  }
+}
+
+function vaScales(xCb,yCb,volData){
+  const maxVol=Math.max(...volData,1);
+  return{
+    x:{ticks:{color:'#8B95A5',font:{family:'JetBrains Mono',size:10},maxTicksLimit:8,callback:xCb},grid:{color:'rgba(0,0,0,0.04)'},border:{color:'rgba(0,0,0,0.08)'}},
+    y:{position:'left',ticks:{color:'#8B95A5',font:{family:'JetBrains Mono',size:10},callback:yCb},grid:{color:'rgba(0,0,0,0.04)'},border:{color:'rgba(0,0,0,0.08)'}},
+    y1:{position:'right',ticks:{color:'#8B95A5',font:{family:'JetBrains Mono',size:9},callback:v=>v>=1000?(v/1000).toFixed(0)+'K':v},grid:{display:false},border:{display:false},max:maxVol*3}
+  };
+}
+
+function vaSpotAnnotation(label){
+  return{};
+}
+
+function vaDrawTerm(){
+  const expKeys=Object.keys(vaData);
+  if(expKeys.length===0)return;
+
+  const labels=[];
+  const ivData=[];
+  const oiData=[];
+
+  expKeys.forEach(exp=>{
+    const contracts=vaData[exp];
+    if(!contracts)return;
+    const filtered=contracts.filter(c=>c.option_type===vaType&&c.implied_volatility>0);
+    if(filtered.length===0)return;
+
+    let atm=filtered[0];
+    if(vaSpot>0)atm=filtered.reduce((best,c)=>Math.abs(c.strike-vaSpot)<Math.abs(best.strike-vaSpot)?c:best,filtered[0]);
+
+    const dte=Math.round((new Date(exp+'T16:00:00')-new Date())/(1000*60*60*24));
+    labels.push(dte+'d');
+    ivData.push(+(atm.implied_volatility*100).toFixed(2));
+    const totalOI=filtered.reduce((s,c)=>s+(c.open_interest||0),0);
+    oiData.push(totalOI);
+  });
+
+  document.getElementById('vaTermLabel').textContent='ATM IV by expiry — '+vaType+'s'+(vaSpot>0?' (spot $'+vaSpot.toFixed(0)+')':'');
+
+  const xCb=(v,i)=>labels[i]||'';
+  const yCb=v=>v.toFixed(1)+'%';
+
+  if(vaTermChart){
+    vaTermChart.data.labels=labels;
+    vaTermChart.data.datasets[0].data=ivData;
+    if(vaTermChart.data.datasets[1])vaTermChart.data.datasets[1].data=oiData;
+    vaTermChart.options.scales=vaTermScales(xCb,yCb,oiData);
+    vaTermChart.update('none');
+  } else {
+    const ctx=document.getElementById('vaTermChart').getContext('2d');
+    vaTermChart=new Chart(ctx,{type:'line',data:{labels,datasets:[
+      {label:'ATM IV %',data:ivData,borderColor:'#D97706',borderWidth:2.5,tension:0.3,pointRadius:4,pointBackgroundColor:'#D97706',fill:{target:'origin',above:'rgba(217,119,6,0.08)'},yAxisID:'y'},
+      {label:'Total OI',data:oiData,type:'bar',backgroundColor:'rgba(5,150,105,0.15)',borderColor:'rgba(5,150,105,0.3)',borderWidth:1,yAxisID:'y1'}
+    ]},options:{responsive:true,maintainAspectRatio:false,animation:false,interaction:{mode:'index',intersect:false},plugins:{legend:{display:true,labels:{font:{family:'JetBrains Mono',size:10},color:'#8B95A5',boxWidth:12}},tooltip:{backgroundColor:'#fff',borderColor:'rgba(0,0,0,0.12)',borderWidth:1,titleColor:'#4B5368',bodyColor:'#111318',padding:10,titleFont:{family:'JetBrains Mono',size:11},bodyFont:{family:'JetBrains Mono',size:12},callbacks:{title:c=>c[0].label,label:c=>c.datasetIndex===0?' IV: '+c.parsed.y.toFixed(2)+'%':' OI: '+c.parsed.y.toLocaleString()}}},scales:vaTermScales(xCb,yCb,oiData)}});
+  }
+}
+
+function vaTermScales(xCb,yCb,oiData){
+  const maxOI=Math.max(...oiData,1);
+  return{
+    x:{ticks:{color:'#8B95A5',font:{family:'JetBrains Mono',size:10},callback:xCb},grid:{color:'rgba(0,0,0,0.04)'},border:{color:'rgba(0,0,0,0.08)'}},
+    y:{position:'left',ticks:{color:'#8B95A5',font:{family:'JetBrains Mono',size:10},callback:yCb},grid:{color:'rgba(0,0,0,0.04)'},border:{color:'rgba(0,0,0,0.08)'}},
+    y1:{position:'right',ticks:{color:'#8B95A5',font:{family:'JetBrains Mono',size:9},callback:v=>v>=1000?(v/1000).toFixed(0)+'K':v},grid:{display:false},border:{display:false},max:maxOI*3}
+  };
+}
+
+document.getElementById('vaTicker').addEventListener('keydown',e=>{if(e.key==='Enter')vaFetch();});
+
 function triggerFriday(){
   const now=new Date();
   const isFriday=now.getDay()===5;
@@ -2564,27 +2809,23 @@ function triggerSpokes(){
   const allCharts=[mainChart,...Object.values(miniCharts)].filter(Boolean);
   let spokesActive=true;
 
-  // Save original data, colors, widths
-  const saved=allCharts.map(ch=>ch.data.datasets.map(ds=>({data:[...ds.data],color:ds.borderColor,width:ds.borderWidth})));
+  // Save original data, colors, widths, AND labels
+  const saved=allCharts.map(ch=>({
+    labels:[...ch.data.labels],
+    datasets:ch.data.datasets.map(ds=>({data:[...ds.data],color:ds.borderColor,width:ds.borderWidth}))
+  }));
 
-  // Heart silhouette: two semicircle bumps + V-shaped bottom
-  function heartData(n){
-    const pts=[];
+  // Parametric heart curve — traces a closed heart shape
+  function heartCurve(n){
+    const xs=[],ys=[];
     for(let i=0;i<n;i++){
-      const x=(i/(n-1))*2-1; // -1 to 1
-      // Two semicircular bumps (radius 0.5, centered at ±0.5)
-      const r=0.5;
-      const leftD=Math.sqrt(Math.max(0,r*r-(x+0.5)*(x+0.5)));
-      const rightD=Math.sqrt(Math.max(0,r*r-(x-0.5)*(x-0.5)));
-      const bumps=Math.max(leftD,rightD);
-      // V-shaped bottom pointing down
-      const v=-Math.abs(x)*0.8+0.3;
-      pts.push(bumps*1.8+v);
+      const t=(i/n)*2*Math.PI;
+      xs.push(16*Math.pow(Math.sin(t),3));
+      ys.push(13*Math.cos(t)-5*Math.cos(2*t)-2*Math.cos(3*t)-Math.cos(4*t));
     }
-    return pts;
+    return{xs,ys};
   }
 
-  // Morph charts into hearts with pulsing
   const pinks=['#ff6b9d','#e91e63','#ff1744','#f50057','#ff4081','#ec407a'];
   let frame=0;
   function heartBeat(){
@@ -2592,15 +2833,16 @@ function triggerSpokes(){
     frame++;
     const pulse=1+Math.sin(frame*0.2)*0.12;
     allCharts.forEach((ch,ci)=>{
+      const n=ch.data.labels.length;
+      const heart=heartCurve(n);
+      ch.data.labels=heart.xs.map(v=>(v*pulse).toFixed(1));
       ch.data.datasets.forEach(ds=>{
-        const n=ds.data.length;
-        const heart=heartData(n);
-        const origMax=Math.max(...saved[ci][0].data.map(v=>Math.abs(v)))||1;
-        const scale=origMax*pulse;
-        ds.data=heart.map(v=>v*scale);
+        ds.data=heart.ys.map(v=>v*pulse);
         ds.borderColor=pinks[frame%pinks.length];
         ds.borderWidth=2.5;
       });
+      ch.options.scales.x.display=false;
+      ch.options.scales.y.display=false;
       ch.update('none');
     });
     setTimeout(heartBeat,100);
@@ -2634,13 +2876,16 @@ function triggerSpokes(){
     spokesActive=false;
     easterEggActive=false;
     allCharts.forEach((ch,ci)=>{
+      ch.data.labels=saved[ci].labels;
       ch.data.datasets.forEach((ds,di)=>{
-        if(saved[ci]&&saved[ci][di]){
-          ds.data=saved[ci][di].data;
-          ds.borderColor=saved[ci][di].color;
-          ds.borderWidth=saved[ci][di].width;
+        if(saved[ci].datasets[di]){
+          ds.data=saved[ci].datasets[di].data;
+          ds.borderColor=saved[ci].datasets[di].color;
+          ds.borderWidth=saved[ci].datasets[di].width;
         }
       });
+      ch.options.scales.x.display=true;
+      ch.options.scales.y.display=true;
     });
     resetMiniChartColors();
     update();
