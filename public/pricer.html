@@ -1787,16 +1787,8 @@ async function handleFormula(f){
         populateExpiryDropdown(monthExps);
         document.getElementById('expirySelect').value='';
         fetchSupplemental(f.ticker);
-        // Auto-load the nearest expiration's spread
-        const nearest=termRows.reduce((best,r)=>{
-          const dte=Math.abs(new Date(r.exp+'T16:00:00')-new Date());
-          return dte<best.d?{d:dte,r}:best;
-        },{d:Infinity,r:null}).r;
-        if(nearest){
-          const dte=Math.max(Math.round((new Date(nearest.exp+'T16:00:00')-new Date())/(1000*60*60*24)),1);
-          await loadTermSpread(f.ticker,nearest.exp,sortedStrikes,f.type,dte,chainWrap.querySelector('tbody tr'));
-        }
-        setStatus(`${termRows.length} ${f.monthName} expirations for ${sortedStrikes.join('/')} ${spreadLabel}`,'success');
+        update();
+        setStatus(`${termRows.length} ${f.monthName} expirations for ${sortedStrikes.join('/')} ${spreadLabel} — click a row to load`,'success');
         setTimeout(()=>document.querySelector('.panel-left').scrollTop=0,100);
         document.getElementById('fetchBtn').disabled=false;
         return;
@@ -1835,16 +1827,8 @@ async function handleFormula(f){
       document.getElementById('expirySelect').value='';
       setSingleType(f.type);
       fetchSupplemental(f.ticker);
-      // Auto-load the nearest expiration
-      const nearestTerm=termRows.reduce((best,r)=>{
-        const dist=Math.abs(new Date(r.exp+'T16:00:00')-new Date());
-        return dist<best.d?{d:dist,r}:best;
-      },{d:Infinity,r:null}).r;
-      if(nearestTerm){
-        const dte=Math.max(Math.round((new Date(nearestTerm.exp+'T16:00:00')-new Date())/(1000*60*60*24)),1);
-        loadTermOption(f.ticker,nearestTerm.exp,nearestTerm.strike,nearestTerm.implied_volatility||0.25,f.type,dte,chainWrap.querySelector('tbody tr'));
-      } else { update(); }
-      setStatus(`${termRows.length} ${f.monthName} expirations for ${f.strike}${typeLabel}`,'success');
+      update();
+      setStatus(`${termRows.length} ${f.monthName} expirations for ${f.strike}${typeLabel} — click a row to load`,'success');
       setTimeout(()=>document.querySelector('.panel-left').scrollTop=0,100);
       document.getElementById('fetchBtn').disabled=false;
       return;
@@ -1876,8 +1860,7 @@ async function handleFormula(f){
         addLeg({type:f.type,dir,K:nearestContract?.strike||k,IV:iv,T:dte,qty:1});
       }
 
-      const exps=[...new Set(chainData.map(c=>c.expiration_date))].sort();
-      populateExpiryDropdown(exps);
+      populateExpiryDropdown(allExps);
       document.getElementById('expirySelect').value=exp;
       chainShowPuts=(f.type==='put');
       document.getElementById('chainTypeBtn').textContent=chainShowPuts?'Show calls':'Show puts';
@@ -1909,8 +1892,7 @@ async function handleFormula(f){
     }
 
     const match=matches[0];
-    const exps=[...new Set(chainData.map(c=>c.expiration_date))].sort();
-    populateExpiryDropdown(exps);
+    populateExpiryDropdown(allExps);
     document.getElementById('expirySelect').value=exp;
 
     chainShowPuts=(f.type==='put');
@@ -2029,11 +2011,22 @@ async function fetchChain(){
     renderChain();
     document.getElementById('chainWrap').classList.remove('hidden');
 
-    // Set DTE on single-leg slider
     const dte=Math.max(Math.round((new Date(expiry+'T16:00:00')-new Date())/(1000*60*60*24)),1);
-    document.getElementById('sl-T').value=dte;
 
-    setStatus(chainData.length+' contracts loaded','success');
+    if(appMode==='multi'&&legs.length>0){
+      // Re-load existing legs with new expiry's IVs and DTE
+      for(const leg of legs){
+        const contract=chainData.find(c=>c.option_type===leg.type&&Math.abs(c.strike-leg.K)<0.5);
+        if(contract&&contract.implied_volatility>0)leg.IV=+(contract.implied_volatility*100).toFixed(1);
+        leg.T=dte;
+      }
+      renderLegs();
+      update();
+      setStatus(`Updated ${legs.length} legs to ${expiry} (${dte}d)`,'success');
+    } else {
+      document.getElementById('sl-T').value=dte;
+      setStatus(chainData.length+' contracts loaded','success');
+    }
   }catch(e){setStatus('Chain error: '+e.message,'error');}
 }
 
