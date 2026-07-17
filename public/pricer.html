@@ -907,7 +907,7 @@ function setChart(m){
   } else {
     va.classList.remove('active');
     mcw.style.display='';cf.style.display='';gs.style.display='';
-    mainChartYOverride=null;
+    mainChartYOverride=null;mainChartXOverride=null;
     update();
   }
 }
@@ -1138,6 +1138,7 @@ const tooltipCfg=(isDollar)=>({backgroundColor:'#fff',borderColor:'rgba(0,0,0,0.
 
 /* ── Draw main chart ─────────────────────── */
 let mainChartYOverride=null;
+let mainChartXOverride=null;
 function drawMainChart(S,r,q,singleRes,singlePremium){
   const spots=spotRange(S,120);
   let labels=spots.map(sp=>sp.toFixed(1));
@@ -1255,7 +1256,7 @@ function drawMainChart(S,r,q,singleRes,singlePremium){
 
   const yCb=chartMode==='iv_smile'?v=>v.toFixed(1)+'%':chartMode==='pdf'?v=>v.toFixed(4):v=>isDollar?(v>=0?'$':'-$')+Math.abs(v).toFixed(1):v.toFixed(3);
   const plOpts={currentPriceLine:{show:true,showLabel:true}};
-  if(mainChart){mainChart.data.labels=labels;mainChart.data.datasets=datasets;const sc=baseScales(xCb,yCb);if(mainChartYOverride){sc.y.min=mainChartYOverride.min;sc.y.max=mainChartYOverride.max;}mainChart.options.scales=sc;mainChart.options.plugins.tooltip=tooltipCfg(isDollar);mainChart.options.plugins.currentPriceLine=plOpts.currentPriceLine;mainChart.update('none');}
+  if(mainChart){mainChart.data.labels=labels;mainChart.data.datasets=datasets;const sc=baseScales(xCb,yCb);if(mainChartYOverride){sc.y.min=mainChartYOverride.min;sc.y.max=mainChartYOverride.max;}if(mainChartXOverride){sc.x.min=mainChartXOverride.min;sc.x.max=mainChartXOverride.max;}mainChart.options.scales=sc;mainChart.options.plugins.tooltip=tooltipCfg(isDollar);mainChart.options.plugins.currentPriceLine=plOpts.currentPriceLine;mainChart.update('none');}
   else{const ctx=document.getElementById('mainChart').getContext('2d');mainChart=new Chart(ctx,{type:'line',data:{labels,datasets},options:{responsive:true,maintainAspectRatio:false,resizeDelay:100,animation:NO_ANIM,transitions:{resize:{animation:RESIZE_ANIM}},interaction:{mode:'index',intersect:false},plugins:{legend:{display:false},tooltip:tooltipCfg(isDollar),...plOpts},scales:baseScales(xCb,yCb)}});}
 
   // footer
@@ -2385,21 +2386,12 @@ document.querySelector('.panel-center').addEventListener('dblclick',function(e){
 });
 
 
-// Click-drag on charts to move spot price (skips axis areas on main chart)
+// Click-drag on mini/overlay charts to move spot price
 (function(){
   const panel=document.querySelector('.panel-center');
   let dragging=false,startX=0,startVal=0;
-  function isOnAxis(e){
-    const wrap=e.target.closest('.main-chart-wrap');
-    if(!wrap||!mainChart)return false;
-    const rect=wrap.querySelector('canvas').getBoundingClientRect();
-    const x=e.clientX-rect.left,y=e.clientY-rect.top;
-    const sx=mainChart.scales.x,sy=mainChart.scales.y;
-    return y>sx.top||x<sy.right;
-  }
   panel.addEventListener('mousedown',function(e){
-    if(!e.target.closest('.main-chart-wrap,.mini-chart-card,.overlay-card'))return;
-    if(isOnAxis(e))return;
+    if(!e.target.closest('.mini-chart-card,.overlay-card'))return;
     dragging=true;startX=e.clientX;startVal=parseFloat(document.getElementById('sl-S').value);
     e.preventDefault();
     panel.style.cursor='ew-resize';
@@ -2424,6 +2416,53 @@ document.querySelector('.panel-center').addEventListener('dblclick',function(e){
   });
 })();
 
+// Drag on main chart body to pan view
+(function(){
+  const canvas=document.getElementById('mainChart');
+  let pan=null;
+  function isOnAxis(e){
+    if(!mainChart)return false;
+    const rect=canvas.getBoundingClientRect();
+    const x=e.clientX-rect.left,y=e.clientY-rect.top;
+    return x<mainChart.scales.y.right+10||y>mainChart.scales.x.top;
+  }
+  canvas.addEventListener('mousedown',function(e){
+    if(!mainChart||isOnAxis(e))return;
+    e.preventDefault();
+    const sy=mainChart.scales.y,sx=mainChart.scales.x;
+    pan={startX:e.clientX,startY:e.clientY,
+      xMin:sx.min,xMax:sx.max,xPxRange:sx.right-sx.left,
+      yMin:sy.min,yMax:sy.max,yPxRange:sy.bottom-sy.top};
+    canvas.style.cursor='grabbing';
+  });
+  window.addEventListener('mousemove',function(e){
+    if(!pan)return;
+    const dx=e.clientX-pan.startX;
+    const dy=e.clientY-pan.startY;
+    const xRange=pan.xMax-pan.xMin;
+    const yRange=pan.yMax-pan.yMin;
+    const xShift=-dx/pan.xPxRange*xRange;
+    const yShift=dy/pan.yPxRange*yRange;
+    mainChartXOverride={min:pan.xMin+xShift,max:pan.xMax+xShift};
+    mainChartYOverride={min:pan.yMin+yShift,max:pan.yMax+yShift};
+    mainChart.options.scales.x.min=mainChartXOverride.min;
+    mainChart.options.scales.x.max=mainChartXOverride.max;
+    mainChart.options.scales.y.min=mainChartYOverride.min;
+    mainChart.options.scales.y.max=mainChartYOverride.max;
+    mainChart.update('none');
+  });
+  window.addEventListener('mouseup',function(){
+    if(!pan)return;
+    pan=null;
+    canvas.style.cursor='';
+  });
+  canvas.addEventListener('dblclick',function(e){
+    if(isOnAxis(e))return;
+    mainChartXOverride=null;mainChartYOverride=null;
+    update();
+  });
+})();
+
 // Drag/scroll on y-axis to rescale, double-click to reset
 (function(){
   const canvas=document.getElementById('mainChart');
@@ -2436,7 +2475,7 @@ document.querySelector('.panel-center').addEventListener('dblclick',function(e){
   }
   canvas.addEventListener('mousemove',function(e){
     if(axisDrag)return;
-    canvas.style.cursor=isOnYAxis(e)?'ns-resize':'';
+    canvas.style.cursor=isOnYAxis(e)?'ns-resize':'grab';
   });
   canvas.addEventListener('mousedown',function(e){
     if(!isOnYAxis(e))return;
