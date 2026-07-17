@@ -694,8 +694,6 @@ input[type=range]:hover::-webkit-slider-thumb{background:var(--blue);}
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
 <script>
 /* ── Math ─────────────────────────────────── */
 function erf(x){const t=1/(1+0.3275911*Math.abs(x));const p=t*(0.254829592+t*(-0.284496736+t*(1.421413741+t*(-1.453152027+t*1.061405429))));const r=1-p*Math.exp(-x*x);return x>=0?r:-r;}
@@ -909,7 +907,7 @@ function setChart(m){
   } else {
     va.classList.remove('active');
     mcw.style.display='';cf.style.display='';gs.style.display='';
-    if(mainChart)mainChart.resetZoom?.();
+    mainChartYOverride=null;
     update();
   }
 }
@@ -1139,12 +1137,9 @@ function setBar(id,val,max){const el=document.getElementById(id);if(el)el.style.
 const tooltipCfg=(isDollar)=>({backgroundColor:'#fff',borderColor:'rgba(0,0,0,0.12)',borderWidth:1,titleColor:'#4B5368',bodyColor:'#111318',padding:10,titleFont:{family:'JetBrains Mono',size:11},bodyFont:{family:'JetBrains Mono',size:12},callbacks:{title:c=>'Spot: $'+parseFloat(c[0].label).toFixed(2),label:c=>{const v=c.parsed.y;return' '+(isDollar?(v>=0?'+$':'-$')+Math.abs(v).toFixed(2):v.toFixed(4));}}});
 
 /* ── Draw main chart ─────────────────────── */
-let lockedSpotRange=null;
+let mainChartYOverride=null;
 function drawMainChart(S,r,q,singleRes,singlePremium){
-  const isZoomed=mainChart&&mainChart.isZoomedOrPanned();
-  if(isZoomed&&!lockedSpotRange)lockedSpotRange=spotRange(S,120);
-  if(!isZoomed)lockedSpotRange=null;
-  const spots=isZoomed&&lockedSpotRange?lockedSpotRange:spotRange(S,120);
+  const spots=spotRange(S,120);
   let labels=spots.map(sp=>sp.toFixed(1));
   let datasets=[];
   let isDollar=true;
@@ -1260,10 +1255,8 @@ function drawMainChart(S,r,q,singleRes,singlePremium){
 
   const yCb=chartMode==='iv_smile'?v=>v.toFixed(1)+'%':chartMode==='pdf'?v=>v.toFixed(4):v=>isDollar?(v>=0?'$':'-$')+Math.abs(v).toFixed(1):v.toFixed(3);
   const plOpts={currentPriceLine:{show:true,showLabel:true}};
-  const zoomOpts={zoom:{wheel:{enabled:true,modifierKey:null},pinch:{enabled:true},mode:'xy'},pan:{enabled:true,mode:'xy'},limits:{y:{minRange:0.1}}};
-  if(mainChart){const zs=mainChart.isZoomedOrPanned()?{x:{min:mainChart.scales.x.min,max:mainChart.scales.x.max},y:{min:mainChart.scales.y.min,max:mainChart.scales.y.max}}:null;mainChart.data.labels=labels;mainChart.data.datasets=datasets;mainChart.options.scales=baseScales(xCb,yCb);mainChart.options.plugins.tooltip=tooltipCfg(isDollar);mainChart.options.plugins.currentPriceLine=plOpts.currentPriceLine;if(zs){mainChart.options.scales.x.min=zs.x.min;mainChart.options.scales.x.max=zs.x.max;mainChart.options.scales.y.min=zs.y.min;mainChart.options.scales.y.max=zs.y.max;}mainChart.update('none');}
-  else{const ctx=document.getElementById('mainChart').getContext('2d');mainChart=new Chart(ctx,{type:'line',data:{labels,datasets},options:{responsive:true,maintainAspectRatio:false,resizeDelay:100,animation:NO_ANIM,transitions:{resize:{animation:RESIZE_ANIM}},interaction:{mode:'index',intersect:false},plugins:{legend:{display:false},tooltip:tooltipCfg(isDollar),zoom:zoomOpts,...plOpts},scales:baseScales(xCb,yCb)}});
-    document.querySelector('.main-chart-wrap').addEventListener('dblclick',()=>{if(mainChart)mainChart.resetZoom();});}
+  if(mainChart){mainChart.data.labels=labels;mainChart.data.datasets=datasets;const sc=baseScales(xCb,yCb);if(mainChartYOverride){sc.y.min=mainChartYOverride.min;sc.y.max=mainChartYOverride.max;}mainChart.options.scales=sc;mainChart.options.plugins.tooltip=tooltipCfg(isDollar);mainChart.options.plugins.currentPriceLine=plOpts.currentPriceLine;mainChart.update('none');}
+  else{const ctx=document.getElementById('mainChart').getContext('2d');mainChart=new Chart(ctx,{type:'line',data:{labels,datasets},options:{responsive:true,maintainAspectRatio:false,resizeDelay:100,animation:NO_ANIM,transitions:{resize:{animation:RESIZE_ANIM}},interaction:{mode:'index',intersect:false},plugins:{legend:{display:false},tooltip:tooltipCfg(isDollar),...plOpts},scales:baseScales(xCb,yCb)}});}
 
   // footer
   buildFooter(S,r,q,singlePremium);
@@ -2392,13 +2385,21 @@ document.querySelector('.panel-center').addEventListener('dblclick',function(e){
 });
 
 
-// Click-drag on charts to move spot price
+// Click-drag on charts to move spot price (skips axis areas on main chart)
 (function(){
   const panel=document.querySelector('.panel-center');
   let dragging=false,startX=0,startVal=0;
+  function isOnAxis(e){
+    const wrap=e.target.closest('.main-chart-wrap');
+    if(!wrap||!mainChart)return false;
+    const rect=wrap.querySelector('canvas').getBoundingClientRect();
+    const x=e.clientX-rect.left,y=e.clientY-rect.top;
+    const sx=mainChart.scales.x,sy=mainChart.scales.y;
+    return y>sx.top||x<sy.right;
+  }
   panel.addEventListener('mousedown',function(e){
     if(!e.target.closest('.main-chart-wrap,.mini-chart-card,.overlay-card'))return;
-    if(e.target.closest('.main-chart-wrap')&&mainChart&&mainChart.isZoomedOrPanned())return;
+    if(isOnAxis(e))return;
     dragging=true;startX=e.clientX;startVal=parseFloat(document.getElementById('sl-S').value);
     e.preventDefault();
     panel.style.cursor='ew-resize';
@@ -2420,6 +2421,61 @@ document.querySelector('.panel-center').addEventListener('dblclick',function(e){
     if(!dragging)return;
     dragging=false;
     document.querySelector('.panel-center').style.cursor='';
+  });
+})();
+
+// Drag/scroll on y-axis to rescale, double-click to reset
+(function(){
+  const canvas=document.getElementById('mainChart');
+  let axisDrag=null;
+  function isOnYAxis(e){
+    if(!mainChart)return false;
+    const rect=canvas.getBoundingClientRect();
+    const x=e.clientX-rect.left;
+    return x<mainChart.scales.y.right+10;
+  }
+  canvas.addEventListener('mousemove',function(e){
+    if(axisDrag)return;
+    canvas.style.cursor=isOnYAxis(e)?'ns-resize':'';
+  });
+  canvas.addEventListener('mousedown',function(e){
+    if(!isOnYAxis(e))return;
+    e.preventDefault();e.stopPropagation();
+    const sy=mainChart.scales.y;
+    axisDrag={startY:e.clientY,origMin:sy.min,origMax:sy.max,range:sy.max-sy.min,mid:(sy.min+sy.max)/2};
+    canvas.style.cursor='ns-resize';
+  });
+  window.addEventListener('mousemove',function(e){
+    if(!axisDrag)return;
+    const dy=e.clientY-axisDrag.startY;
+    const scale=Math.pow(1.005,dy);
+    const newRange=axisDrag.range*scale;
+    mainChartYOverride={min:axisDrag.mid-newRange/2,max:axisDrag.mid+newRange/2};
+    mainChart.options.scales.y.min=mainChartYOverride.min;
+    mainChart.options.scales.y.max=mainChartYOverride.max;
+    mainChart.update('none');
+  });
+  window.addEventListener('mouseup',function(){
+    if(!axisDrag)return;
+    axisDrag=null;
+    canvas.style.cursor='';
+  });
+  canvas.addEventListener('wheel',function(e){
+    if(!isOnYAxis(e))return;
+    e.preventDefault();
+    const sy=mainChart.scales.y;
+    const curMin=sy.min,curMax=sy.max,range=curMax-curMin,mid=(curMin+curMax)/2;
+    const factor=e.deltaY>0?1.1:0.9;
+    const newRange=range*factor;
+    mainChartYOverride={min:mid-newRange/2,max:mid+newRange/2};
+    mainChart.options.scales.y.min=mainChartYOverride.min;
+    mainChart.options.scales.y.max=mainChartYOverride.max;
+    mainChart.update('none');
+  },{passive:false});
+  canvas.addEventListener('dblclick',function(e){
+    if(!isOnYAxis(e))return;
+    mainChartYOverride=null;
+    update();
   });
 })();
 
