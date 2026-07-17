@@ -1785,10 +1785,17 @@ async function handleFormula(f){
           <div class="chain-scroll" id="chainScroll"><table class="chain-table"><thead>${thead}</thead><tbody>${tbody}</tbody></table></div>`;
         chainWrap.classList.remove('hidden');
         populateExpiryDropdown(monthExps);
-        document.getElementById('expirySelect').value='';
         fetchSupplemental(f.ticker);
-        update();
-        setStatus(`${termRows.length} ${f.monthName} expirations for ${sortedStrikes.join('/')} ${spreadLabel} — click a row to load`,'success');
+        // Auto-load: pick first expiry with DTE > 1, else nearest
+        const pick=termRows.find(r=>Math.round((new Date(r.exp+'T16:00:00')-new Date())/(1000*60*60*24))>1)||termRows[0];
+        if(pick){
+          const pickDte=Math.max(Math.round((new Date(pick.exp+'T16:00:00')-new Date())/(1000*60*60*24)),1);
+          document.getElementById('expirySelect').value=pick.exp;
+          const pickIdx=termRows.indexOf(pick);
+          const pickRow=chainWrap.querySelectorAll('tbody tr')[pickIdx];
+          await loadTermSpread(f.ticker,pick.exp,sortedStrikes,f.type,pickDte,pickRow);
+        }
+        setStatus(`${termRows.length} ${f.monthName} expirations for ${sortedStrikes.join('/')} ${spreadLabel}`,'success');
         setTimeout(()=>document.querySelector('.panel-left').scrollTop=0,100);
         document.getElementById('fetchBtn').disabled=false;
         return;
@@ -1824,11 +1831,18 @@ async function handleFormula(f){
         <div class="chain-scroll" id="chainScroll"><table class="chain-table"><thead>${thead}</thead><tbody>${tbody}</tbody></table></div>`;
       chainWrap.classList.remove('hidden');
       populateExpiryDropdown(monthExps);
-      document.getElementById('expirySelect').value='';
       setSingleType(f.type);
       fetchSupplemental(f.ticker);
-      update();
-      setStatus(`${termRows.length} ${f.monthName} expirations for ${f.strike}${typeLabel} — click a row to load`,'success');
+      // Auto-load: pick first expiry with DTE > 1, else nearest
+      const pickSingle=termRows.find(r=>Math.round((new Date(r.exp+'T16:00:00')-new Date())/(1000*60*60*24))>1)||termRows[0];
+      if(pickSingle){
+        const pickDte=Math.max(Math.round((new Date(pickSingle.exp+'T16:00:00')-new Date())/(1000*60*60*24)),1);
+        document.getElementById('expirySelect').value=pickSingle.exp;
+        const pickIdx=termRows.indexOf(pickSingle);
+        const pickRow=chainWrap.querySelectorAll('tbody tr')[pickIdx];
+        loadTermOption(f.ticker,pickSingle.exp,pickSingle.strike,pickSingle.implied_volatility||0.25,f.type,pickDte,pickRow);
+      } else { update(); }
+      setStatus(`${termRows.length} ${f.monthName} expirations for ${f.strike}${typeLabel}`,'success');
       setTimeout(()=>document.querySelector('.panel-left').scrollTop=0,100);
       document.getElementById('fetchBtn').disabled=false;
       return;
