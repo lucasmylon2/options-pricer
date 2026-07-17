@@ -909,6 +909,7 @@ function setChart(m){
   } else {
     va.classList.remove('active');
     mcw.style.display='';cf.style.display='';gs.style.display='';
+    if(mainChart)mainChart.resetZoom?.();
     update();
   }
 }
@@ -1256,7 +1257,7 @@ function drawMainChart(S,r,q,singleRes,singlePremium){
   const yCb=chartMode==='iv_smile'?v=>v.toFixed(1)+'%':chartMode==='pdf'?v=>v.toFixed(4):v=>isDollar?(v>=0?'$':'-$')+Math.abs(v).toFixed(1):v.toFixed(3);
   const plOpts={currentPriceLine:{show:true,showLabel:true}};
   const zoomOpts={zoom:{wheel:{enabled:true,modifierKey:null},pinch:{enabled:true},mode:'xy'},pan:{enabled:true,mode:'xy'},limits:{y:{minRange:0.1}}};
-  if(mainChart){mainChart.data.labels=labels;mainChart.data.datasets=datasets;mainChart.options.scales=baseScales(xCb,yCb);mainChart.options.plugins.tooltip=tooltipCfg(isDollar);mainChart.options.plugins.currentPriceLine=plOpts.currentPriceLine;mainChart.resetZoom?.();mainChart.update('none');}
+  if(mainChart){mainChart.data.labels=labels;mainChart.data.datasets=datasets;mainChart.options.scales=baseScales(xCb,yCb);mainChart.options.plugins.tooltip=tooltipCfg(isDollar);mainChart.options.plugins.currentPriceLine=plOpts.currentPriceLine;mainChart.update('none');}
   else{const ctx=document.getElementById('mainChart').getContext('2d');mainChart=new Chart(ctx,{type:'line',data:{labels,datasets},options:{responsive:true,maintainAspectRatio:false,resizeDelay:100,animation:NO_ANIM,transitions:{resize:{animation:RESIZE_ANIM}},interaction:{mode:'index',intersect:false},plugins:{legend:{display:false},tooltip:tooltipCfg(isDollar),zoom:zoomOpts,...plOpts},scales:baseScales(xCb,yCb)}});
     document.querySelector('.main-chart-wrap').addEventListener('dblclick',()=>{if(mainChart)mainChart.resetZoom();});}
 
