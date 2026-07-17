@@ -54,8 +54,8 @@ html,body{background:var(--bg);color:var(--text-primary);font-family:var(--sans)
 .panel-left{border-right:1px solid var(--border);overflow-y:auto;background:var(--bg1);display:flex;flex-direction:column;scrollbar-width:thin;scrollbar-color:var(--border-hi) transparent;}
 .panel-left>*{flex-shrink:0;}
 .mkt-section{flex-shrink:0;display:flex;flex-direction:column;padding:6px 16px 8px;border-bottom:1px solid var(--border);background:rgba(37,99,235,0.02);}
-.mkt-section>#chainWrap{max-height:200px;display:flex;flex-direction:column;overflow:hidden;}
-.chain-scroll{flex:1 1 0;min-height:80px;max-height:none;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--border-hi) transparent;}
+.mkt-section>#chainWrap{display:flex;flex-direction:column;overflow:hidden;}
+.chain-scroll{overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--border-hi) transparent;max-height:45vh;}
 .panel-left::-webkit-scrollbar{width:3px;}
 .panel-left::-webkit-scrollbar-thumb{background:var(--border-hi);}
 .p-section{padding:0 16px 8px;border-bottom:1px solid var(--border);}
@@ -1877,8 +1877,9 @@ async function handleFormula(f){
       populateExpiryDropdown(allExps);
       document.getElementById('expirySelect').value=exp;
       chainShowPuts=(f.type==='put');
-      document.getElementById('chainTypeBtn').textContent=chainShowPuts?'Show calls':'Show puts';
       renderChain();
+      const ctb1=document.getElementById('chainTypeBtn');
+      if(ctb1)ctb1.textContent=chainShowPuts?'Show calls':'Show puts';
       document.getElementById('chainWrap').classList.remove('hidden');
       update();
       fetchSupplemental(f.ticker);
@@ -1910,19 +1911,17 @@ async function handleFormula(f){
     document.getElementById('expirySelect').value=exp;
 
     chainShowPuts=(f.type==='put');
-    document.getElementById('chainTypeBtn').textContent=chainShowPuts?'Show calls':'Show puts';
 
-    if(appMode==='single'){
-      document.getElementById('sl-K').value=match.strike;
-      if(match.implied_volatility>0)document.getElementById('sl-IV').value=+(match.implied_volatility*100).toFixed(1);
-      document.getElementById('sl-T').value=dte;
-      setSingleType(f.type);
-      loadedOption={strike:match.strike,iv:match.implied_volatility>0?+(match.implied_volatility*100).toFixed(1):25,type:f.type,dte,spot:price};
-    } else {
-      addLeg({type:f.type,dir:'long',K:match.strike,IV:match.implied_volatility>0?+(match.implied_volatility*100).toFixed(1):25,T:dte,qty:1});
-    }
+    if(appMode!=='single')setMode('single');
+    document.getElementById('sl-K').value=match.strike;
+    if(match.implied_volatility>0)document.getElementById('sl-IV').value=+(match.implied_volatility*100).toFixed(1);
+    document.getElementById('sl-T').value=dte;
+    setSingleType(f.type);
+    loadedOption={strike:match.strike,iv:match.implied_volatility>0?+(match.implied_volatility*100).toFixed(1):25,type:f.type,dte,spot:price};
 
     renderChain();
+    const ctb2=document.getElementById('chainTypeBtn');
+    if(ctb2)ctb2.textContent=chainShowPuts?'Show calls':'Show puts';
     document.getElementById('chainWrap').classList.remove('hidden');
     setTimeout(()=>{
       const sc=document.getElementById('chainScroll');
