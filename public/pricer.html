@@ -694,6 +694,8 @@ input[type=range]:hover::-webkit-slider-thumb{background:var(--blue);}
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
 <script>
 /* ── Math ─────────────────────────────────── */
 function erf(x){const t=1/(1+0.3275911*Math.abs(x));const p=t*(0.254829592+t*(-0.284496736+t*(1.421413741+t*(-1.453152027+t*1.061405429))));const r=1-p*Math.exp(-x*x);return x>=0?r:-r;}
@@ -1253,8 +1255,10 @@ function drawMainChart(S,r,q,singleRes,singlePremium){
 
   const yCb=chartMode==='iv_smile'?v=>v.toFixed(1)+'%':chartMode==='pdf'?v=>v.toFixed(4):v=>isDollar?(v>=0?'$':'-$')+Math.abs(v).toFixed(1):v.toFixed(3);
   const plOpts={currentPriceLine:{show:true,showLabel:true}};
-  if(mainChart){mainChart.data.labels=labels;mainChart.data.datasets=datasets;mainChart.options.scales=baseScales(xCb,yCb);mainChart.options.plugins.tooltip=tooltipCfg(isDollar);mainChart.options.plugins.currentPriceLine=plOpts.currentPriceLine;mainChart.update('none');}
-  else{const ctx=document.getElementById('mainChart').getContext('2d');mainChart=new Chart(ctx,{type:'line',data:{labels,datasets},options:{responsive:true,maintainAspectRatio:false,resizeDelay:100,animation:NO_ANIM,transitions:{resize:{animation:RESIZE_ANIM}},interaction:{mode:'index',intersect:false},plugins:{legend:{display:false},tooltip:tooltipCfg(isDollar),...plOpts},scales:baseScales(xCb,yCb)}});}
+  const zoomOpts={zoom:{wheel:{enabled:true,modifierKey:null},pinch:{enabled:true},mode:'xy'},pan:{enabled:true,mode:'xy'},limits:{y:{minRange:0.1}}};
+  if(mainChart){mainChart.data.labels=labels;mainChart.data.datasets=datasets;mainChart.options.scales=baseScales(xCb,yCb);mainChart.options.plugins.tooltip=tooltipCfg(isDollar);mainChart.options.plugins.currentPriceLine=plOpts.currentPriceLine;mainChart.resetZoom?.();mainChart.update('none');}
+  else{const ctx=document.getElementById('mainChart').getContext('2d');mainChart=new Chart(ctx,{type:'line',data:{labels,datasets},options:{responsive:true,maintainAspectRatio:false,resizeDelay:100,animation:NO_ANIM,transitions:{resize:{animation:RESIZE_ANIM}},interaction:{mode:'index',intersect:false},plugins:{legend:{display:false},tooltip:tooltipCfg(isDollar),zoom:zoomOpts,...plOpts},scales:baseScales(xCb,yCb)}});
+    document.querySelector('.main-chart-wrap').addEventListener('dblclick',()=>{if(mainChart)mainChart.resetZoom();});}
 
   // footer
   buildFooter(S,r,q,singlePremium);
