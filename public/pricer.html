@@ -1786,8 +1786,16 @@ async function handleFormula(f){
         chainWrap.classList.remove('hidden');
         populateExpiryDropdown(monthExps);
         document.getElementById('expirySelect').value='';
-        update();
         fetchSupplemental(f.ticker);
+        // Auto-load the nearest expiration's spread
+        const nearest=termRows.reduce((best,r)=>{
+          const dte=Math.abs(new Date(r.exp+'T16:00:00')-new Date());
+          return dte<best.d?{d:dte,r}:best;
+        },{d:Infinity,r:null}).r;
+        if(nearest){
+          const dte=Math.max(Math.round((new Date(nearest.exp+'T16:00:00')-new Date())/(1000*60*60*24)),1);
+          await loadTermSpread(f.ticker,nearest.exp,sortedStrikes,f.type,dte,chainWrap.querySelector('tbody tr'));
+        }
         setStatus(`${termRows.length} ${f.monthName} expirations for ${sortedStrikes.join('/')} ${spreadLabel}`,'success');
         setTimeout(()=>document.querySelector('.panel-left').scrollTop=0,100);
         document.getElementById('fetchBtn').disabled=false;
@@ -1826,8 +1834,16 @@ async function handleFormula(f){
       populateExpiryDropdown(monthExps);
       document.getElementById('expirySelect').value='';
       setSingleType(f.type);
-      update();
       fetchSupplemental(f.ticker);
+      // Auto-load the nearest expiration
+      const nearestTerm=termRows.reduce((best,r)=>{
+        const dist=Math.abs(new Date(r.exp+'T16:00:00')-new Date());
+        return dist<best.d?{d:dist,r}:best;
+      },{d:Infinity,r:null}).r;
+      if(nearestTerm){
+        const dte=Math.max(Math.round((new Date(nearestTerm.exp+'T16:00:00')-new Date())/(1000*60*60*24)),1);
+        loadTermOption(f.ticker,nearestTerm.exp,nearestTerm.strike,nearestTerm.implied_volatility||0.25,f.type,dte,chainWrap.querySelector('tbody tr'));
+      } else { update(); }
       setStatus(`${termRows.length} ${f.monthName} expirations for ${f.strike}${typeLabel}`,'success');
       setTimeout(()=>document.querySelector('.panel-left').scrollTop=0,100);
       document.getElementById('fetchBtn').disabled=false;
