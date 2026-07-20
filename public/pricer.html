@@ -330,6 +330,9 @@ input[type=range]:hover::-webkit-slider-thumb{background:var(--blue);}
 .tour-banner button:hover{background:#1d4ed8;}
 .tour-banner .dismiss{background:transparent;color:var(--text-dim);border-color:var(--border);font-weight:500;}
 @keyframes bannerSlide{from{opacity:0;transform:translateY(-100%)}to{opacity:1;transform:translateY(0)}}
+.ai-topbar-btn{width:28px;height:28px;border-radius:50%;border:none;background:var(--blue);color:#fff;font-family:var(--mono);font-size:10px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;margin-left:8px;transition:all 0.15s;box-shadow:0 1px 4px rgba(37,99,235,0.3);}
+.ai-topbar-btn:hover{background:#1d4ed8;box-shadow:0 2px 8px rgba(37,99,235,0.4);transform:scale(1.08);}
+.ai-topbar-btn.active{background:#1d4ed8;box-shadow:0 0 0 2px #fff,0 0 0 4px var(--blue);}
 .tour-topbar-btn{font-family:var(--mono);font-size:9px;font-weight:600;padding:4px 10px;border-radius:3px;border:1px solid var(--border);background:transparent;color:var(--text-dim);cursor:pointer;letter-spacing:0.06em;transition:all 0.15s;}
 .tour-topbar-btn:hover{border-color:var(--blue);color:var(--blue);}
 </style>
@@ -359,6 +362,7 @@ input[type=range]:hover::-webkit-slider-thumb{background:var(--blue);}
       <button class="mode-btn" id="btn-put" onclick="setSingleType('put')">PUT</button>
     </div>
     <button class="mode-btn" id="resetBtn" onclick="resetCurrentMode()" style="border:1px solid var(--red);border-radius:3px;color:var(--red);margin-left:6px;">RESET</button>
+    <button class="ai-topbar-btn" id="aiTopBtn" onclick="toggleAiTab()" title="AI Assistant">AI</button>
     <button class="tour-topbar-btn" id="tourBtn" onclick="startTour()">TAKE A TOUR</button>
   </div>
   <div class="topbar-right">
@@ -799,7 +803,6 @@ const LEG_COLORS=['#2563EB','#DC2626','#059669','#D97706','#7C3AED','#0891B2','#
 function getS(){return parseFloat(document.getElementById('sl-S').value);}
 function getR(){return appMode==='single'?parseFloat(document.getElementById('sl-r').value)/100:parseFloat(document.getElementById('sl-rm').value)/100;}
 function getQ(){return appMode==='single'?parseFloat(document.getElementById('sl-q').value)/100:parseFloat(document.getElementById('sl-qm').value)/100;}
-function getSingleInputs(){return{S:getS(),K:parseFloat(document.getElementById('sl-K').value),IV:parseFloat(document.getElementById('sl-IV').value)/100,T:parseFloat(document.getElementById('sl-T').value)/365,r:parseFloat(document.getElementById('sl-r').value)/100,q:parseFloat(document.getElementById('sl-q').value)/100};}
 
 /* ── Spot slider customization ──────────── */
 function updateSpotRange(){
@@ -940,8 +943,8 @@ function setSingleType(t){
 }
 
 /* ── Tabs ─────────────────────────────────── */
-const SINGLE_TABS=[{id:'payoff',label:'Payoff'},{id:'pnl',label:'P&L'},{id:'price',label:'Price vs spot'},{id:'delta',label:'Delta vs spot'},{id:'gamma',label:'Gamma vs spot'},{id:'vega',label:'Vega vs spot'},{id:'theta',label:'Theta decay'},{id:'iv_smile',label:'IV Smile'},{id:'vol_analysis',label:'Vol Analysis'},{id:'ai',label:'AI'}];
-const MULTI_TABS=[{id:'pnl',label:'P&L at expiry'},{id:'delta',label:'Net Delta'},{id:'gamma',label:'Net Gamma'},{id:'vega',label:'Net Vega'},{id:'theta',label:'Net Theta'},{id:'ai',label:'AI'}];
+const SINGLE_TABS=[{id:'payoff',label:'Payoff'},{id:'pnl',label:'P&L'},{id:'price',label:'Price vs spot'},{id:'delta',label:'Delta vs spot'},{id:'gamma',label:'Gamma vs spot'},{id:'vega',label:'Vega vs spot'},{id:'theta',label:'Theta decay'},{id:'iv_smile',label:'IV Smile'},{id:'vol_analysis',label:'Vol Analysis'}];
+const MULTI_TABS=[{id:'pnl',label:'P&L at expiry'},{id:'delta',label:'Net Delta'},{id:'gamma',label:'Net Gamma'},{id:'vega',label:'Net Vega'},{id:'theta',label:'Net Theta'}];
 
 function updateStrategyLabel(){
   const nameEl=document.getElementById('stratName');
@@ -1004,9 +1007,15 @@ function rebuildTabs(){
   container.innerHTML=tabs.map(t=>`<button class="chart-tab${t.id===chartMode?' active':''}" id="tab-${t.id}" onclick="setChart('${t.id}')">${t.label}</button>`).join('');
 }
 
+function toggleAiTab(){
+  if(chartMode==='ai') setChart(appMode==='single'?'payoff':'pnl');
+  else setChart('ai');
+}
+
 function setChart(m){
   chartMode=m;
   document.querySelectorAll('.chart-tab').forEach(el=>el.classList.toggle('active',el.id==='tab-'+m));
+  document.getElementById('aiTopBtn').classList.toggle('active',m==='ai');
   const va=document.getElementById('volAnalysis');
   const ai=document.getElementById('aiChatPanel');
   const mcw=document.querySelector('.main-chart-wrap');
@@ -1248,7 +1257,7 @@ Chart.register(currentPriceLinePlugin);
 /* ── Chart helpers ───────────────────────── */
 function baseScales(xCb,yCb){return{x:{ticks:{color:TC,font:TF,maxTicksLimit:6,callback:xCb},grid:{color:GC},border:{color:AC}},y:{ticks:{color:TC,font:TF,maxTicksLimit:5,callback:yCb},grid:{color:GC},border:{color:AC}}};}
 function fmtD(v){return(v>=0?'$':'-$')+Math.abs(v).toFixed(2);}
-function fmtG(v){return(v>=0?'':'')+v.toFixed(4);}
+function fmtG(v){return(v>=0?'+':'')+v.toFixed(4);}
 function setBar(id,val,max){const el=document.getElementById(id);if(el)el.style.width=Math.min(Math.abs(val)/max*100,100).toFixed(1)+'%';}
 
 const tooltipCfg=(isDollar)=>({backgroundColor:'#fff',borderColor:'rgba(0,0,0,0.12)',borderWidth:1,titleColor:'#4B5368',bodyColor:'#111318',padding:10,titleFont:{family:'JetBrains Mono',size:11},bodyFont:{family:'JetBrains Mono',size:12},callbacks:{title:c=>'Spot: $'+parseFloat(c[0].label).toFixed(2),label:c=>{const v=c.parsed.y;return' '+(isDollar?(v>=0?'+$':'-$')+Math.abs(v).toFixed(2):v.toFixed(4));}}});
@@ -1752,14 +1761,23 @@ function setStatus(msg,cls){
   el.className='mkt-status'+(cls?' '+cls:'');
 }
 
+let _fetchController=null;
 async function apiFetch(path){
-  const res=await fetch(path);
-  if(!res.ok){
-    const err=await res.json().catch(()=>({}));
-    setStatus(err.error||`API error ${res.status}`,'error');
-    return null;
+  if(_fetchController)_fetchController.abort();
+  _fetchController=new AbortController();
+  const signal=_fetchController.signal;
+  try{
+    const res=await fetch(path,{signal});
+    if(!res.ok){
+      const err=await res.json().catch(()=>({}));
+      setStatus(err.error||`API error ${res.status}`,'error');
+      return null;
+    }
+    return res.json();
+  }catch(e){
+    if(e.name==='AbortError')return null;
+    throw e;
   }
-  return res.json();
 }
 
 /* ── Formula parser ─────────────────────── */
@@ -2348,7 +2366,7 @@ async function autoRefreshPrice(){
     document.getElementById('mq-last').textContent='$'+price.toFixed(2);
     if(spotFollowsLive){
       const sl=document.getElementById('sl-S');
-      sl.value=Math.round(price);
+      sl.value=price;
     }
     update();
   }catch(e){/* silent */}
@@ -2685,13 +2703,14 @@ document.querySelector('.panel-center').addEventListener('dblclick',function(e){
 /* ── AI Chat ──────────────────────────────── */
 let aiHistory=[];
 function aiSend(){
+  const btn=document.getElementById('aiSendBtn');
+  if(btn.disabled)return;
   const input=document.getElementById('aiInput');
   const msg=input.value.trim();
   if(!msg)return;
   input.value='';input.style.height='auto';
   appendAiMsg('user',msg);
   aiHistory.push({role:'user',content:msg});
-  const btn=document.getElementById('aiSendBtn');
   btn.disabled=true;
   const container=document.getElementById('aiMessages');
   const typing=document.createElement('div');
@@ -2748,8 +2767,9 @@ function appendAiMsg(role,text){
   return div;
 }
 function escHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function escHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function renderMd(text){
-  return text
+  return escHtml(text)
     .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
     .replace(/\*(.+?)\*/g,'<em>$1</em>')
     .replace(/`([^`]+)`/g,'<code>$1</code>')
@@ -2815,8 +2835,8 @@ function applyStrategy(action){
     const leg=action.legs[0];
     setSingleType(leg.type);
     document.getElementById('sl-K').value=leg.strike;
-    if(leg.iv)document.getElementById('sl-IV').value=+(leg.iv*100).toFixed(1);
-    if(leg.dte)document.getElementById('sl-T').value=leg.dte;
+    document.getElementById('sl-IV').value=leg.iv?+(leg.iv*100).toFixed(1):25;
+    document.getElementById('sl-T').value=leg.dte||30;
   } else {
     if(appMode!=='multi')setMode('multi');
     legs=[];legIdCounter=0;
@@ -2864,7 +2884,7 @@ document.getElementById('resetViewBtn').addEventListener('click',function(){
 /* ── Guided Tour ─────────────────────────── */
 const tourSteps=[
   {el:'.topbar-left',title:'MODE SELECTION',body:'Switch between <b>Single Leg</b> for individual options and <b>Strategy</b> for multi-leg structures like spreads, strangles, and custom combos.'},
-  {el:'#tickerInput',title:'SMART SEARCH',body:'Type a ticker to browse the chain, or use formulas:<br><code>aapl 26jul17 300 c</code> — single option<br><code>aapl 26jul 300 c</code> — term structure<br><code>aapl 26jul17 300 320 cs</code> — call spread'},
+  {el:'#tickerInput',title:'SMART SEARCH',body:'Type a ticker to browse the chain, or use formulas:<br><code>aapl 17jul26 300 c</code> — single option<br><code>aapl jul26 300 c</code> — term structure<br><code>aapl 17jul26 300 320 cs</code> — call spread'},
   {el:'.p-section',title:'SPOT & RANGE',body:'Drag the spot slider to see how price and Greeks change in real time. Use the range presets to zoom in on penny stocks or zoom out for high-priced names. <b>Click-drag on any chart</b> to scrub spot.'},
   {el:'.anim-section',title:'ANIMATIONS',body:'Sweep spot price across the range, decay time to expiry, or run both simultaneously. Great for visualizing theta burn and delta transitions.'},
   {el:'.main-chart-wrap',title:'MAIN CHART',body:'The primary visualization — toggle between payoff, P&L, price vs spot, individual Greeks, theta decay, and IV smile views using the tabs above.'},
@@ -3067,7 +3087,7 @@ function vaScales(xCb,yCb,volData){
 }
 
 function vaSpotAnnotation(label){
-  return{};
+  return{annotations:{spotLine:{type:'line',xMin:label,xMax:label,borderColor:'rgba(37,99,235,0.5)',borderWidth:1,borderDash:[4,3],label:{display:true,content:'Spot',position:'start',font:{size:9},color:'rgba(37,99,235,0.7)'}}}}
 }
 
 function vaDrawTerm(){

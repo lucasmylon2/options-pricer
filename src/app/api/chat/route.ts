@@ -182,7 +182,11 @@ export async function POST(req: Request) {
     return Response.json({ error: 'ANTHROPIC_API_KEY not configured — add it to .env.local and restart the server' }, { status: 500 });
   }
 
-  const { messages } = await req.json();
+  const body = await req.json();
+  const messages = body?.messages;
+  if (!Array.isArray(messages) || messages.length === 0 || messages.length > 50) {
+    return Response.json({ error: 'Invalid messages' }, { status: 400 });
+  }
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
