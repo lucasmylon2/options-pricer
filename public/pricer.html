@@ -104,6 +104,15 @@ input[type=range]:hover::-webkit-slider-thumb{background:var(--blue);}
 
 /* center panel */
 .panel-center{display:flex;flex-direction:column;min-height:0;background:var(--bg);overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;scrollbar-color:var(--border-hi) transparent;}
+.strategy-label{display:flex;align-items:center;padding:4px 16px;background:var(--bg1);border-bottom:1px solid var(--border);font-size:11px;color:var(--fg2);flex-shrink:0;gap:8px;min-height:22px;}
+.strategy-label .strat-name{font-weight:600;color:var(--fg);letter-spacing:0.3px;}
+.strategy-label .strat-detail{color:var(--fg2);}
+.strategy-label .strat-ticker{color:var(--blue);font-weight:700;font-size:12px;}
+.strat-history{display:inline-flex;align-items:center;gap:4px;margin-left:auto;flex-shrink:0;}
+.strat-nav{background:none;border:1px solid var(--border);border-radius:3px;color:var(--fg2);font-size:14px;width:20px;height:20px;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;line-height:1;}
+.strat-nav:hover{background:var(--bg2);color:var(--fg);}
+.strat-nav:disabled{opacity:0.3;cursor:default;}
+.strat-counter{font-size:10px;color:var(--fg2);min-width:24px;text-align:center;}
 .chart-tabs{display:flex;border-bottom:1px solid var(--border);padding:0 16px;background:var(--bg1);flex-shrink:0;overflow-x:auto;}
 .chart-tab{padding:10px 0;margin-right:18px;font-size:12px;color:var(--text-dim);cursor:pointer;border:none;border-bottom:2px solid transparent;background:none;font-family:var(--sans);white-space:nowrap;}
 .chart-tab:hover{color:var(--text-secondary);}
@@ -569,6 +578,15 @@ input[type=range]:hover::-webkit-slider-thumb{background:var(--blue);}
 
   <!-- CENTER PANEL -->
   <div class="panel-center">
+    <div class="strategy-label" id="strategyLabel">
+      <span class="strat-name" id="stratName">Long Call</span>
+      <span class="strat-detail" id="stratDetail">K100 · 25.0% IV · 30d</span>
+      <span class="strat-history" id="stratHistory" style="display:none;">
+        <button class="strat-nav" id="stratPrev" onclick="navStrategy(-1)">‹</button>
+        <span class="strat-counter" id="stratCounter">1/1</span>
+        <button class="strat-nav" id="stratNext" onclick="navStrategy(1)">›</button>
+      </span>
+    </div>
     <div class="chart-tabs" id="chartTabs">
       <!-- tabs injected by JS -->
     </div>
@@ -758,6 +776,10 @@ function bs(S,K,T,r,q,sigma,type){
 /* ── State ───────────────────────────────── */
 let appMode='single'; // 'single' | 'multi'
 let singleType='call';
+
+/* ── Strategy History ───────────────────── */
+let strategyHistory=[];
+let strategyIdx=-1;
 let chartMode='payoff';
 let savedSingleState=null;
 let savedMultiState=null;
@@ -920,6 +942,59 @@ function setSingleType(t){
 /* ── Tabs ─────────────────────────────────── */
 const SINGLE_TABS=[{id:'payoff',label:'Payoff'},{id:'pnl',label:'P&L'},{id:'price',label:'Price vs spot'},{id:'delta',label:'Delta vs spot'},{id:'gamma',label:'Gamma vs spot'},{id:'vega',label:'Vega vs spot'},{id:'theta',label:'Theta decay'},{id:'iv_smile',label:'IV Smile'},{id:'vol_analysis',label:'Vol Analysis'},{id:'ai',label:'AI'}];
 const MULTI_TABS=[{id:'pnl',label:'P&L at expiry'},{id:'delta',label:'Net Delta'},{id:'gamma',label:'Net Gamma'},{id:'vega',label:'Net Vega'},{id:'theta',label:'Net Theta'},{id:'ai',label:'AI'}];
+
+function updateStrategyLabel(){
+  const nameEl=document.getElementById('stratName');
+  const detailEl=document.getElementById('stratDetail');
+  const ticker=currentTicker?currentTicker.toUpperCase():'';
+  const tickerStr=ticker?'<span class="strat-ticker">'+ticker+'</span> · ':'';
+  if(appMode==='single'){
+    const K=parseFloat(document.getElementById('sl-K').value);
+    const IV=parseFloat(document.getElementById('sl-IV').value);
+    const T=parseFloat(document.getElementById('sl-T').value);
+    const dir='Long';
+    const type=singleType==='call'?'Call':'Put';
+    nameEl.textContent=dir+' '+type;
+    detailEl.innerHTML=tickerStr+'K'+K+' · '+IV.toFixed(1)+'% IV · '+Math.round(T)+'d';
+  } else {
+    const name=detectStrategyName();
+    nameEl.textContent=name;
+    const strikes=legs.map(l=>l.K).sort((a,b)=>a-b);
+    const dte=legs.length?legs[0].T+'d':'';
+    const strikesStr=strikes.join('/');
+    detailEl.innerHTML=tickerStr+(strikesStr?strikesStr+' · ':'')+dte;
+  }
+}
+
+function detectStrategyName(){
+  if(legs.length===0) return 'Strategy';
+  if(legs.length===1){
+    return (legs[0].dir==='long'?'Long':'Short')+' '+(legs[0].type==='call'?'Call':'Put');
+  }
+  const calls=legs.filter(l=>l.type==='call');
+  const puts=legs.filter(l=>l.type==='put');
+  const longs=legs.filter(l=>l.dir==='long');
+  const shorts=legs.filter(l=>l.dir==='short');
+  const strikes=[...new Set(legs.map(l=>l.K))].sort((a,b)=>a-b);
+  if(legs.length===2&&calls.length===2&&longs.length===1&&shorts.length===1){
+    const lo=legs.find(l=>l.dir==='long'),sh=legs.find(l=>l.dir==='short');
+    return lo.K<sh.K?'Bull Call Spread':'Bear Call Spread';
+  }
+  if(legs.length===2&&puts.length===2&&longs.length===1&&shorts.length===1){
+    const lo=legs.find(l=>l.dir==='long'),sh=legs.find(l=>l.dir==='short');
+    return lo.K>sh.K?'Bear Put Spread':'Bull Put Spread';
+  }
+  if(legs.length===2&&calls.length===1&&puts.length===1&&strikes.length===1){
+    return longs.length===2?'Long Straddle':'Short Straddle';
+  }
+  if(legs.length===2&&calls.length===1&&puts.length===1&&strikes.length===2){
+    return longs.length===2?'Long Strangle':'Short Strangle';
+  }
+  if(legs.length===4&&calls.length===2&&puts.length===2) return 'Iron Condor';
+  if(legs.length===3&&(calls.length===3||puts.length===3)) return 'Butterfly';
+  if(legs.length===4&&(calls.length===4||puts.length===4)) return 'Butterfly';
+  return legs.length+'-Leg Strategy';
+}
 
 function rebuildTabs(){
   const tabs=appMode==='single'?SINGLE_TABS:MULTI_TABS;
@@ -1428,6 +1503,7 @@ function computeNetGreekAtSpot(sp,r,q){
 let easterEggActive=false;
 function update(){
   if(easterEggActive||chartMode==='vol_analysis')return;
+  updateStrategyLabel();
   const S=getS();
   const r=getR(),q=getQ();
 
@@ -2695,7 +2771,45 @@ function handleAiAction(action){
     loadAiStrategy(action);
   }
 }
-function loadAiStrategy(action){
+function loadAiStrategy(action, fromNav){
+  if(!fromNav){
+    const label=buildStratLabel(action);
+    strategyHistory.push({action:JSON.parse(JSON.stringify(action)),label});
+    strategyIdx=strategyHistory.length-1;
+    updateStratHistoryUI();
+  }
+  applyStrategy(action);
+}
+
+function buildStratLabel(action){
+  const ticker=action.symbol?action.symbol.toUpperCase():(currentTicker||'');
+  if(action.legs.length===1){
+    const l=action.legs[0];
+    const type=l.type==='call'?'Call':'Put';
+    return (ticker?ticker+' ':'')+'Long '+type+' K'+l.strike;
+  }
+  const tmpLegs=action.legs.map(l=>({type:l.type,dir:l.direction,K:l.strike}));
+  const calls=tmpLegs.filter(l=>l.type==='call');
+  const puts=tmpLegs.filter(l=>l.type==='put');
+  const longs=tmpLegs.filter(l=>l.dir==='long');
+  const shorts=tmpLegs.filter(l=>l.dir==='short');
+  const strikes=[...new Set(tmpLegs.map(l=>l.K))].sort((a,b)=>a-b);
+  let name=tmpLegs.length+'-Leg Strategy';
+  if(tmpLegs.length===2&&calls.length===2&&longs.length===1&&shorts.length===1){
+    const lo=tmpLegs.find(l=>l.dir==='long'),sh=tmpLegs.find(l=>l.dir==='short');
+    name=lo.K<sh.K?'Bull Call Spread':'Bear Call Spread';
+  } else if(tmpLegs.length===2&&puts.length===2&&longs.length===1&&shorts.length===1){
+    const lo=tmpLegs.find(l=>l.dir==='long'),sh=tmpLegs.find(l=>l.dir==='short');
+    name=lo.K>sh.K?'Bear Put Spread':'Bull Put Spread';
+  } else if(tmpLegs.length===2&&calls.length===1&&puts.length===1&&strikes.length===1){
+    name=longs.length===2?'Long Straddle':'Short Straddle';
+  } else if(tmpLegs.length===2&&calls.length===1&&puts.length===1&&strikes.length===2){
+    name=longs.length===2?'Long Strangle':'Short Strangle';
+  } else if(tmpLegs.length===4&&calls.length===2&&puts.length===2) name='Iron Condor';
+  return (ticker?ticker+' ':'')+name+' '+strikes.join('/');
+}
+
+function applyStrategy(action){
   if(action.legs.length===1){
     if(appMode!=='single')setMode('single');
     const leg=action.legs[0];
@@ -2717,10 +2831,26 @@ function loadAiStrategy(action){
     document.getElementById('sl-S-min').value=mn;
     document.getElementById('sl-S-max').value=mx;
   }
-  // Switch to payoff/pnl view
   const targetTab=appMode==='single'?'payoff':'pnl';
   setChart(targetTab);
   update();
+}
+
+function navStrategy(dir){
+  const newIdx=strategyIdx+dir;
+  if(newIdx<0||newIdx>=strategyHistory.length) return;
+  strategyIdx=newIdx;
+  updateStratHistoryUI();
+  applyStrategy(strategyHistory[strategyIdx].action);
+}
+
+function updateStratHistoryUI(){
+  const wrap=document.getElementById('stratHistory');
+  if(strategyHistory.length<2){wrap.style.display='none';return;}
+  wrap.style.display='inline-flex';
+  document.getElementById('stratCounter').textContent=(strategyIdx+1)+'/'+strategyHistory.length;
+  document.getElementById('stratPrev').disabled=strategyIdx===0;
+  document.getElementById('stratNext').disabled=strategyIdx===strategyHistory.length-1;
 }
 // Auto-resize textarea
 document.getElementById('aiInput').addEventListener('input',function(){this.style.height='auto';this.style.height=Math.min(this.scrollHeight,100)+'px';});
