@@ -2703,21 +2703,19 @@ function loadAiStrategy(action){
     document.getElementById('sl-K').value=leg.strike;
     if(leg.iv)document.getElementById('sl-IV').value=+(leg.iv*100).toFixed(1);
     if(leg.dte)document.getElementById('sl-T').value=leg.dte;
-    if(action.spot){
-      const sl=document.getElementById('sl-S');
-      const mn=Math.max(Math.round(action.spot*0.5),1),mx=Math.round(action.spot*2);
-      sl.min=mn;sl.max=mx;sl.value=action.spot;
-    }
   } else {
     if(appMode!=='multi')setMode('multi');
     legs=[];legIdCounter=0;
     for(const leg of action.legs){
       addLeg({type:leg.type,dir:leg.direction,K:leg.strike,IV:leg.iv?+(leg.iv*100).toFixed(1):25,T:leg.dte||30,qty:leg.qty||1});
     }
-    if(action.spot){
-      const sl=document.getElementById('sl-Sm');
-      if(sl){const mn=Math.max(Math.round(action.spot*0.5),1),mx=Math.round(action.spot*2);sl.min=mn;sl.max=mx;sl.value=action.spot;}
-    }
+  }
+  if(action.spot){
+    const sl=document.getElementById('sl-S');
+    const mn=Math.max(Math.round(action.spot*0.5),1),mx=Math.round(action.spot*2);
+    if(sl){sl.min=mn;sl.max=mx;sl.value=action.spot;}
+    document.getElementById('sl-S-min').value=mn;
+    document.getElementById('sl-S-max').value=mx;
   }
   // Switch to payoff/pnl view
   const targetTab=appMode==='single'?'payoff':'pnl';

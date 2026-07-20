@@ -1,9 +1,14 @@
 import Anthropic from '@anthropic-ai/sdk';
 
-const MASSIVE_BASE = process.env.MASSIVE_BASE_URL || 'https://api.massive.com';
-const MASSIVE_KEY = process.env.MASSIVE_API_KEY || '';
+function getEnv(key: string, fallback = '') {
+  return process.env[key] || fallback;
+}
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY || '' });
+let _client: Anthropic | null = null;
+function getClient() {
+  if (!_client) _client = new Anthropic({ apiKey: getEnv('ANTHROPIC_API_KEY') });
+  return _client;
+}
 
 const SYSTEM = `You are an options trading AI assistant embedded in an interactive Black-Scholes pricer. You help traders analyze options strategies, understand greeks, and find opportunities.
 
@@ -34,8 +39,10 @@ interface MassiveContract {
 }
 
 async function massiveFetch(path: string) {
-  const res = await fetch(`${MASSIVE_BASE}${path}`, {
-    headers: { Authorization: `Bearer ${MASSIVE_KEY}` },
+  const base = getEnv('MASSIVE_BASE_URL', 'https://api.massive.com');
+  const key = getEnv('MASSIVE_API_KEY');
+  const res = await fetch(`${base}${path}`, {
+    headers: { Authorization: `Bearer ${key}` },
   });
   if (!res.ok) throw new Error(`Massive ${res.status}: ${await res.text()}`);
   return res.json();
@@ -59,7 +66,7 @@ async function getExpirations(symbol: string) {
       const exp = (c as MassiveContract).details?.expiration_date;
       if (exp) expirations.add(exp);
     }
-    url = data?.next_url?.replace(MASSIVE_BASE, '') || null;
+    url = data?.next_url?.replace(getEnv('MASSIVE_BASE_URL', 'https://api.massive.com'), '') || null;
     page++;
   }
   return { symbol: symbol.toUpperCase(), expirations: Array.from(expirations).sort() };
@@ -72,7 +79,7 @@ async function getChain(symbol: string, expiration: string) {
   while (url && page < 3) {
     const data = await massiveFetch(url);
     all.push(...(data?.results || []));
-    url = data?.next_url?.replace(MASSIVE_BASE, '') || null;
+    url = data?.next_url?.replace(getEnv('MASSIVE_BASE_URL', 'https://api.massive.com'), '') || null;
     page++;
   }
   const spot = all[0]?.underlying_asset?.price ?? 0;
@@ -171,8 +178,8 @@ async function handleToolCall(name: string, input: Record<string, unknown>) {
 }
 
 export async function POST(req: Request) {
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return Response.json({ error: 'ANTHROPIC_API_KEY not configured' }, { status: 500 });
+  if (!getEnv('ANTHROPIC_API_KEY')) {
+    return Response.json({ error: 'ANTHROPIC_API_KEY not configured — add it to .env.local and restart the server' }, { status: 500 });
   }
 
   const { messages } = await req.json();
@@ -187,8 +194,8 @@ export async function POST(req: Request) {
 
         while (iterations < MAX_ITERATIONS) {
           iterations++;
-          const response = await client.messages.create({
-            model: 'claude-sonnet-4-20250514',
+          const response = await getClient().messages.create({
+            model: 'claude-sonnet-4-6',
             max_tokens: 2048,
             system: SYSTEM,
             tools,
