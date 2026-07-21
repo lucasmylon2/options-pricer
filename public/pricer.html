@@ -1422,8 +1422,8 @@ function drawMainChart(S,r,q,singleRes,singlePremium){
       legs.forEach((leg,idx)=>{
         if(leg.type==='stock')return;
         const K=parseFloat(getLegVal(leg.id,'K'))||100;
-        const IV=parseFloat(getLegVal(leg.id,'IV'))||25;
-        const T=(parseFloat(getLegVal(leg.id,'T'))||30)/365;
+        const IV=Math.max(1,(parseFloat(getLegVal(leg.id,'IV'))||25)+getIvShift());
+        const T=Math.max(1,(parseFloat(getLegVal(leg.id,'T'))||30)+getDteShift())/365;
         const entry=bs(S,K,T,r,q,IV/100,leg.type).price;
         const sign=leg.dir==='long'?1:-1;
         const qty=parseFloat(getLegVal(leg.id,'qty'))||1;
@@ -1434,8 +1434,8 @@ function drawMainChart(S,r,q,singleRes,singlePremium){
       isDollar=false;
       // use first non-stock leg's IV and T for the distribution
       const firstOpt=legs.find(l=>l.type!=='stock');
-      const IV=firstOpt?(parseFloat(getLegVal(firstOpt.id,'IV'))||25)/100:0.25;
-      const T=firstOpt?(parseFloat(getLegVal(firstOpt.id,'T'))||30)/365:30/365;
+      const IV=firstOpt?Math.max(1,(parseFloat(getLegVal(firstOpt.id,'IV'))||25)+getIvShift())/100:0.25;
+      const T=firstOpt?Math.max(1,(parseFloat(getLegVal(firstOpt.id,'T'))||30)+getDteShift())/365:30/365;
       const sqrtT=Math.sqrt(T);
       const mu=(r-q-0.5*IV*IV)*T;
       labels=[];const pdfData=[];
@@ -1458,8 +1458,8 @@ function drawMainChart(S,r,q,singleRes,singlePremium){
           const qty=parseFloat(getLegVal(leg.id,'qty'))||1;
           if(leg.type==='stock'){if(greek==='delta')val+=sign*qty;return;}
           const K=parseFloat(getLegVal(leg.id,'K'))||100;
-          const IV=parseFloat(getLegVal(leg.id,'IV'))||25;
-          const T=(parseFloat(getLegVal(leg.id,'T'))||30)/365;
+          const IV=Math.max(1,(parseFloat(getLegVal(leg.id,'IV'))||25)+getIvShift());
+          const T=Math.max(1,(parseFloat(getLegVal(leg.id,'T'))||30)+getDteShift())/365;
           const res=bs(sp,K,T,r,q,IV/100,leg.type);
           val+=sign*qty*res[greek];
         });
@@ -1549,21 +1549,21 @@ function computeGreekSweep(greek,axis,S,r,q,nPts){
         legs.forEach(leg=>{
           if(leg.type==='stock'){if(greek==='delta'){val+=(leg.dir==='long'?1:-1)*(parseFloat(getLegVal(leg.id,'qty'))||1);}return;}
           const sign=leg.dir==='long'?1:-1;const qty=parseFloat(getLegVal(leg.id,'qty'))||1;
-          const K=parseFloat(getLegVal(leg.id,'K'))||100;const T=(parseFloat(getLegVal(leg.id,'T'))||30)/365;
+          const K=parseFloat(getLegVal(leg.id,'K'))||100;const T=Math.max(1,(parseFloat(getLegVal(leg.id,'T'))||30)+getDteShift())/365;
           val+=sign*qty*bs(S,K,T,r,q,v,leg.type)[greek];
         });
         data.push(+val.toFixed(6));
       }
     } else {
-      const maxT=legs.reduce((mx,leg)=>{if(leg.type==='stock')return mx;return Math.max(mx,(parseFloat(getLegVal(leg.id,'T'))||30)/365);},30/365);
+      const maxT=legs.reduce((mx,leg)=>{if(leg.type==='stock')return mx;return Math.max(mx,Math.max(1,(parseFloat(getLegVal(leg.id,'T'))||30)+getDteShift())/365);},30/365);
       for(let i=n;i>=0;i--){
         const frac=i/n;labels.push(Math.round(maxT*frac*365)+'d');
         let val=0;
         legs.forEach(leg=>{
           if(leg.type==='stock'){if(greek==='delta'){val+=(leg.dir==='long'?1:-1)*(parseFloat(getLegVal(leg.id,'qty'))||1);}return;}
           const sign=leg.dir==='long'?1:-1;const qty=parseFloat(getLegVal(leg.id,'qty'))||1;
-          const K=parseFloat(getLegVal(leg.id,'K'))||100;const IV=parseFloat(getLegVal(leg.id,'IV'))||25;
-          const T=(parseFloat(getLegVal(leg.id,'T'))||30)/365;const tRem=T*frac;
+          const K=parseFloat(getLegVal(leg.id,'K'))||100;const IV=Math.max(1,(parseFloat(getLegVal(leg.id,'IV'))||25)+getIvShift());
+          const T=Math.max(1,(parseFloat(getLegVal(leg.id,'T'))||30)+getDteShift())/365;const tRem=T*frac;
           if(tRem>0) val+=sign*qty*bs(S,K,tRem,r,q,IV/100,leg.type)[greek];
         });
         data.push(+val.toFixed(6));
@@ -1589,8 +1589,8 @@ function computeNetGreekAtSpot(sp,r,q){
     const sign=leg.dir==='long'?1:-1;
     const qty=parseFloat(getLegVal(leg.id,'qty'))||1;
     const K=parseFloat(getLegVal(leg.id,'K'))||100;
-    const IV=parseFloat(getLegVal(leg.id,'IV'))||25;
-    const T=(parseFloat(getLegVal(leg.id,'T'))||30)/365;
+    const IV=Math.max(1,(parseFloat(getLegVal(leg.id,'IV'))||25)+getIvShift());
+    const T=Math.max(1,(parseFloat(getLegVal(leg.id,'T'))||30)+getDteShift())/365;
     const b=bs(sp,K,T,r,q,IV/100,leg.type);
     res.delta+=sign*qty*b.delta;res.gamma+=sign*qty*b.gamma;res.vega+=sign*qty*b.vega;res.theta+=sign*qty*b.theta;res.rho+=sign*qty*b.rho;res.vanna+=sign*qty*b.vanna;res.volga+=sign*qty*b.volga;
   });
@@ -1662,8 +1662,8 @@ function update(){
       const col=legColor(idx);
       if(leg.type==='stock'){return`<div class="leg-summary"><div class="leg-sum-dot" style="background:${col}"></div><span class="leg-sum-label">${leg.dir==='long'?'+':'-'}${leg.qty} STOCK</span><span class="leg-sum-price">$${S.toFixed(2)}</span></div>`;}
       const K=parseFloat(getLegVal(leg.id,'K'))||100;
-      const IV=parseFloat(getLegVal(leg.id,'IV'))||25;
-      const T=(parseFloat(getLegVal(leg.id,'T'))||30)/365;
+      const IV=Math.max(1,(parseFloat(getLegVal(leg.id,'IV'))||25)+getIvShift());
+      const T=Math.max(1,(parseFloat(getLegVal(leg.id,'T'))||30)+getDteShift())/365;
       const qty=parseFloat(getLegVal(leg.id,'qty'))||1;
       const res=bs(S,K,T,r,q,IV/100,leg.type);
       const sign=leg.dir==='long'?'+':'-';
@@ -1714,8 +1714,8 @@ function update(){
         const sign=leg.dir==='long'?1:-1;const qty=parseFloat(getLegVal(leg.id,'qty'))||1;
         if(leg.type==='stock'){tot+=sign*qty*S*(1+dS);return;}
         const K=parseFloat(getLegVal(leg.id,'K'))||100;
-        const IV=parseFloat(getLegVal(leg.id,'IV'))||25;
-        const T=(parseFloat(getLegVal(leg.id,'T'))||30)/365;
+        const IV=Math.max(1,(parseFloat(getLegVal(leg.id,'IV'))||25)+getIvShift());
+        const T=Math.max(1,(parseFloat(getLegVal(leg.id,'T'))||30)+getDteShift())/365;
         tot+=sign*qty*bs(S*(1+dS),K,Math.max(T+dT,0),r+dR,q+dQ,Math.max(IV/100+dIV,0.01),leg.type).price;
       });
       return tot;
@@ -2577,6 +2577,9 @@ document.getElementById('sl-dte-shift').addEventListener('input',function(){
   const v=parseInt(this.value);
   document.getElementById('lbl-dte-shift').textContent=(v>=0?'+':'')+v+'d';
 });
+
+document.getElementById('sl-iv-shift').addEventListener('dblclick',function(){this.value=0;this.dispatchEvent(new Event('input'));});
+document.getElementById('sl-dte-shift').addEventListener('dblclick',function(){this.value=0;this.dispatchEvent(new Event('input'));});
 
 function getIvShift(){return appMode==='multi'?parseFloat(document.getElementById('sl-iv-shift').value)||0:0;}
 function getDteShift(){return appMode==='multi'?parseInt(document.getElementById('sl-dte-shift').value)||0:0;}
