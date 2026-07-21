@@ -66,6 +66,14 @@ html,body{background:var(--bg);color:var(--text-primary);font-family:var(--sans)
 .slider-name{font-size:12px;color:var(--text-secondary);}
 .slider-name em{font-style:normal;font-family:var(--mono);font-size:10px;color:var(--text-dim);margin-left:3px;}
 .slider-value{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--text-primary);min-width:50px;text-align:right;}
+.delta-pick{display:inline-flex;align-items:center;gap:2px;margin-left:8px;background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:1px 4px;}
+.delta-label{font-size:10px;color:var(--blue);font-weight:700;cursor:default;}
+.delta-input{width:32px;font-family:var(--mono);font-size:10px;border:none;background:transparent;color:var(--fg);text-align:center;outline:none;padding:1px 0;-moz-appearance:textfield;}
+.delta-input::-webkit-outer-spin-button,.delta-input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
+.delta-input::placeholder{color:var(--text-dim);opacity:0.6;}
+.delta-suffix{font-size:9px;color:var(--text-dim);}
+.leg-delta-field{max-width:58px;}
+.leg-delta-input{width:36px!important;}
 input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:2px;background:var(--bg3);outline:none;cursor:pointer;}
 input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;border-radius:50%;background:var(--text-secondary);border:2px solid white;box-shadow:0 0 0 1px var(--border-hi);}
 input[type=range]:hover::-webkit-slider-thumb{background:var(--blue);}
@@ -509,8 +517,8 @@ input[type=range]:hover::-webkit-slider-thumb{background:var(--blue);}
       <div class="p-section">
         <div class="p-heading">OPTION PARAMS</div>
         <div class="slider-group">
-          <div class="slider-meta"><span class="slider-name">Strike <em>(K)</em></span><span class="slider-value" id="lbl-K">$100</span></div>
-          <input type="range" id="sl-K" min="1" max="500" step="0.5" value="100">
+          <div class="slider-meta"><span class="slider-name">Strike <em>(K)</em></span><span class="slider-value" id="lbl-K">$100</span><span class="delta-pick" id="deltaPick"><label class="delta-label">δ</label><input class="delta-input" id="sl-delta" type="number" min="1" max="99" step="1" value="" placeholder="25" oninput="applyDeltaStrike()"><span class="delta-suffix">Δ</span></span></div>
+          <input type="range" id="sl-K" min="1" max="500" step="0.01" value="100">
         </div>
         <div class="slider-group">
           <div class="slider-meta"><span class="slider-name">Implied vol <em>(σ)</em></span><span class="slider-value" id="lbl-IV">25%</span></div>
@@ -538,6 +546,21 @@ input[type=range]:hover::-webkit-slider-thumb{background:var(--blue);}
 
     <!-- Multi-leg: strategy picker + rates + leg builder -->
     <div id="multiInputs" class="hidden">
+
+      <div class="p-section" id="multiVolDteSection">
+        <div class="p-heading">POSITION ADJUSTMENTS</div>
+        <div class="slider-group">
+          <div class="slider-meta"><span class="slider-name">IV shift <em>(all legs)</em></span><span class="slider-value" id="lbl-iv-shift">0 pts</span></div>
+          <input type="range" id="sl-iv-shift" min="-50" max="50" step="0.5" value="0">
+        </div>
+        <div class="slider-group">
+          <div class="slider-meta"><span class="slider-name">DTE shift <em>(all legs)</em></span><span class="slider-value" id="lbl-dte-shift">0d</span></div>
+          <input type="range" id="sl-dte-shift" min="-365" max="365" step="1" value="0">
+        </div>
+        <div style="display:flex;gap:6px;margin-top:4px;">
+          <button class="mode-btn" onclick="resetPositionShifts()" style="font-size:9px;padding:2px 8px;border:1px solid var(--border);border-radius:3px;">Reset shifts</button>
+        </div>
+      </div>
 
       <div class="p-section" id="ratesMultiSection">
         <div class="p-heading p-heading-collapse" onclick="toggleSection('ratesMultiBody',this)">RATES &amp; CARRY</div>
@@ -758,6 +781,32 @@ function erf(x){const t=1/(1+0.3275911*Math.abs(x));const p=t*(0.254829592+t*(-0
 function normCDF(x){return 0.5*(1+erf(x/Math.sqrt(2)));}
 function normPDF(x){return Math.exp(-0.5*x*x)/Math.sqrt(2*Math.PI);}
 
+function normInv(p){
+  if(p<=0)return-Infinity;if(p>=1)return Infinity;if(p===0.5)return 0;
+  const a=[-3.969683028665376e1,2.209460984245205e2,-2.759285104469687e2,1.383577518672690e2,-3.066479806614716e1,2.506628277459239e0];
+  const b=[-5.447609879822406e1,1.615858368580409e2,-1.556989798598866e2,6.680131188771972e1,-1.328068155288572e1];
+  const c=[-7.784894002430293e-3,-3.223964580411365e-1,-2.400758277161838e0,-2.549732539343734e0,4.374664141464968e0,2.938163982698783e0];
+  const d=[7.784695709041462e-3,3.224671290700398e-1,2.445134137142996e0,3.754408661907416e0];
+  const pLow=0.02425,pHigh=1-pLow;
+  let q2,r2;
+  if(p<pLow){q2=Math.sqrt(-2*Math.log(p));return(((((c[0]*q2+c[1])*q2+c[2])*q2+c[3])*q2+c[4])*q2+c[5])/((((d[0]*q2+d[1])*q2+d[2])*q2+d[3])*q2+1);}
+  if(p<=pHigh){q2=p-0.5;r2=q2*q2;return(((((a[0]*r2+a[1])*r2+a[2])*r2+a[3])*r2+a[4])*r2+a[5])*q2/(((((b[0]*r2+b[1])*r2+b[2])*r2+b[3])*r2+b[4])*r2+1);}
+  q2=Math.sqrt(-2*Math.log(1-p));return-(((((c[0]*q2+c[1])*q2+c[2])*q2+c[3])*q2+c[4])*q2+c[5])/((((d[0]*q2+d[1])*q2+d[2])*q2+d[3])*q2+1);
+}
+
+function strikeFromDelta(targetDelta,S,T,r,q,sigma,type){
+  if(T<=0||sigma<=0)return S;
+  const sqrtT=Math.sqrt(T);
+  const eqT=Math.exp(-q*T);
+  let d1;
+  if(type==='call'){
+    d1=normInv(targetDelta/eqT);
+  } else {
+    d1=normInv(1-targetDelta/eqT);
+  }
+  return S*Math.exp(-d1*sigma*sqrtT+(r-q+0.5*sigma*sigma)*T);
+}
+
 function bs(S,K,T,r,q,sigma,type){
   if(T<=0||sigma<=0){const iv=type==='call'?Math.max(S-K,0):Math.max(K-S,0);return{price:iv,delta:type==='call'?(S>K?1:0):(S<K?-1:0),gamma:0,vega:0,theta:0,rho:0,vanna:0,volga:0,d1:0,d2:0};}
   const sqrtT=Math.sqrt(T);
@@ -942,6 +991,38 @@ function setSingleType(t){
   update();
 }
 
+function applyDeltaStrike(){
+  const deltaInput=document.getElementById('sl-delta');
+  const d=parseFloat(deltaInput.value);
+  if(!d||d<=0||d>=100)return;
+  const S=getS(),r=getR(),q=getQ();
+  const IV=parseFloat(document.getElementById('sl-IV').value)/100;
+  const T=parseFloat(document.getElementById('sl-T').value)/365;
+  const targetDelta=d/100;
+  const K=strikeFromDelta(targetDelta,S,T,r,q,IV,singleType);
+  if(!isFinite(K)||K<=0)return;
+  const rounded=+K.toFixed(2);
+  document.getElementById('sl-K').value=rounded;
+  update();
+}
+
+function applyLegDelta(legId){
+  const deltaInput=document.getElementById('leg-'+legId+'-delta');
+  const d=parseFloat(deltaInput.value);
+  if(!d||d<=0||d>=100)return;
+  const leg=legs.find(l=>l.id===legId);
+  if(!leg||leg.type==='stock')return;
+  const S=getS(),r=getR(),q=getQ();
+  const IV=(parseFloat(getLegVal(legId,'IV'))||25)/100;
+  const T=(parseFloat(getLegVal(legId,'T'))||30)/365;
+  const targetDelta=d/100;
+  const K=strikeFromDelta(targetDelta,S,T,r,q,IV,leg.type);
+  if(!isFinite(K)||K<=0)return;
+  const rounded=+K.toFixed(2);
+  document.getElementById('leg-'+legId+'-K').value=rounded;
+  update();
+}
+
 /* ── Tabs ─────────────────────────────────── */
 const SINGLE_TABS=[{id:'payoff',label:'Payoff'},{id:'pnl',label:'P&L'},{id:'price',label:'Price vs spot'},{id:'delta',label:'Delta vs spot'},{id:'gamma',label:'Gamma vs spot'},{id:'vega',label:'Vega vs spot'},{id:'theta',label:'Theta decay'},{id:'iv_smile',label:'IV Smile'},{id:'vol_analysis',label:'Vol Analysis'}];
 const MULTI_TABS=[{id:'pnl',label:'P&L at expiry'},{id:'delta',label:'Net Delta'},{id:'gamma',label:'Net Gamma'},{id:'vega',label:'Net Vega'},{id:'theta',label:'Net Theta'}];
@@ -1099,6 +1180,10 @@ function renderLegs(){
           <span class="leg-label">Strike</span>
           <input class="leg-input" id="leg-${leg.id}-K" type="number" min="1" step="1" value="${leg.K}" oninput="update()">
         </div>
+        <div class="leg-field leg-delta-field">
+          <span class="leg-label">δ</span>
+          <input class="leg-input leg-delta-input" id="leg-${leg.id}-delta" type="number" min="1" max="99" step="1" placeholder="25" oninput="applyLegDelta(${leg.id})">
+        </div>
         <div class="leg-field">
           <span class="leg-label">IV %</span>
           <input class="leg-input" id="leg-${leg.id}-IV" type="number" min="1" max="300" step="1" value="${leg.IV}" oninput="update()">
@@ -1157,8 +1242,8 @@ function computeNetGreeks(S,r,q){
     const qty=parseFloat(getLegVal(leg.id,'qty'))||1;
     if(leg.type==='stock'){net.price+=sign*qty*S;net.delta+=sign*qty;return;}
     const K=parseFloat(getLegVal(leg.id,'K'))||100;
-    const IV=parseFloat(getLegVal(leg.id,'IV'))||25;
-    const T=(parseFloat(getLegVal(leg.id,'T'))||30)/365;
+    const IV=Math.max(1,(parseFloat(getLegVal(leg.id,'IV'))||25)+getIvShift());
+    const T=Math.max(1,(parseFloat(getLegVal(leg.id,'T'))||30)+getDteShift())/365;
     const res=bs(S,K,T,r,q,IV/100,leg.type);
     net.price+=sign*qty*res.price;
     net.delta+=sign*qty*res.delta;
@@ -1181,8 +1266,8 @@ function multiPayoff(spot,S,r,q){
     const qty=parseFloat(getLegVal(leg.id,'qty'))||1;
     if(leg.type==='stock'){total+=sign*qty*(spot-S);return;} // relative to entry
     const K=parseFloat(getLegVal(leg.id,'K'))||100;
-    const IV=parseFloat(getLegVal(leg.id,'IV'))||25;
-    const T=(parseFloat(getLegVal(leg.id,'T'))||30)/365;
+    const IV=Math.max(1,(parseFloat(getLegVal(leg.id,'IV'))||25)+getIvShift());
+    const T=Math.max(1,(parseFloat(getLegVal(leg.id,'T'))||30)+getDteShift())/365;
     // entry premium
     const entry=bs(S,K,T,r,q,IV/100,leg.type).price;
     // payoff at expiry
@@ -2478,7 +2563,26 @@ function updateOverlayChart(){
 const _origDrawMini=drawMiniCharts;
 drawMiniCharts=function(S,r,q){_origDrawMini(S,r,q);if(overlayActive.size>0)updateOverlayChart();};
 
-['sl-S','sl-K','sl-IV','sl-T','sl-r','sl-q','sl-rm','sl-qm'].forEach(id=>{const el=document.getElementById(id);if(el)el.addEventListener('input',update);});
+['sl-S','sl-K','sl-IV','sl-T','sl-r','sl-q','sl-rm','sl-qm','sl-iv-shift','sl-dte-shift'].forEach(id=>{const el=document.getElementById(id);if(el)el.addEventListener('input',update);});
+
+document.getElementById('sl-iv-shift').addEventListener('input',function(){
+  const v=parseFloat(this.value);
+  document.getElementById('lbl-iv-shift').textContent=(v>=0?'+':'')+v+' pts';
+});
+document.getElementById('sl-dte-shift').addEventListener('input',function(){
+  const v=parseInt(this.value);
+  document.getElementById('lbl-dte-shift').textContent=(v>=0?'+':'')+v+'d';
+});
+
+function getIvShift(){return appMode==='multi'?parseFloat(document.getElementById('sl-iv-shift').value)||0:0;}
+function getDteShift(){return appMode==='multi'?parseInt(document.getElementById('sl-dte-shift').value)||0:0;}
+function resetPositionShifts(){
+  document.getElementById('sl-iv-shift').value=0;
+  document.getElementById('sl-dte-shift').value=0;
+  document.getElementById('lbl-iv-shift').textContent='0 pts';
+  document.getElementById('lbl-dte-shift').textContent='0d';
+  update();
+}
 
 // Spot slider: disable live tracking on manual input
 document.getElementById('sl-S').addEventListener('input',function(){
