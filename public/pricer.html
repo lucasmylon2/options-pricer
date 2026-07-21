@@ -72,8 +72,8 @@ html,body{background:var(--bg);color:var(--text-primary);font-family:var(--sans)
 .delta-input::-webkit-outer-spin-button,.delta-input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
 .delta-input::placeholder{color:var(--text-dim);opacity:0.6;}
 .delta-suffix{font-size:9px;color:var(--text-dim);}
-.leg-delta-field{max-width:58px;}
-.leg-delta-input{width:36px!important;}
+.leg-delta-field{max-width:72px;}
+.leg-delta-input{width:48px!important;}
 input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:2px;background:var(--bg3);outline:none;cursor:pointer;}
 input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;border-radius:50%;background:var(--text-secondary);border:2px solid white;box-shadow:0 0 0 1px var(--border-hi);}
 input[type=range]:hover::-webkit-slider-thumb{background:var(--blue);}
@@ -116,7 +116,10 @@ input[type=range]:hover::-webkit-slider-thumb{background:var(--blue);}
 .strategy-label .strat-name{font-weight:600;color:var(--fg);letter-spacing:0.3px;}
 .strategy-label .strat-detail{color:var(--fg2);}
 .strategy-label .strat-ticker{color:var(--blue);font-weight:700;font-size:12px;}
-.strat-history{display:inline-flex;align-items:center;gap:4px;margin-left:auto;flex-shrink:0;}
+.strat-share{margin-left:auto;background:none;border:1px solid var(--border);border-radius:3px;color:var(--fg2);font-size:10px;padding:1px 7px;cursor:pointer;white-space:nowrap;flex-shrink:0;}
+.strat-share:hover{background:var(--bg2);color:var(--fg);}
+.strat-share.copied{background:var(--green);color:#fff;border-color:var(--green);}
+.strat-history{display:inline-flex;align-items:center;gap:4px;flex-shrink:0;}
 .strat-nav{background:none;border:1px solid var(--border);border-radius:3px;color:var(--fg2);font-size:14px;width:20px;height:20px;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;line-height:1;}
 .strat-nav:hover{background:var(--bg2);color:var(--fg);}
 .strat-nav:disabled{opacity:0.3;cursor:default;}
@@ -608,6 +611,7 @@ input[type=range]:hover::-webkit-slider-thumb{background:var(--blue);}
     <div class="strategy-label" id="strategyLabel">
       <span class="strat-name" id="stratName">Long Call</span>
       <span class="strat-detail" id="stratDetail">K100 · 25.0% IV · 30d</span>
+      <button class="strat-share" id="shareBtn" onclick="shareStrategy()" title="Copy shareable link">Share</button>
       <span class="strat-history" id="stratHistory" style="display:none;">
         <button class="strat-nav" id="stratPrev" onclick="navStrategy(-1)">‹</button>
         <span class="strat-counter" id="stratCounter">1/1</span>
@@ -2632,8 +2636,73 @@ function updateSpotTrackBadge(){
   }
 }
 
+/* ── Shareable URL ─────────────────────── */
+function encodeStrategy(){
+  const S=getS(), r=parseFloat(document.getElementById(appMode==='single'?'sl-r':'sl-rm').value), q=parseFloat(document.getElementById(appMode==='single'?'sl-q':'sl-qm').value);
+  const obj={m:appMode,s:S,r,q};
+  if(appMode==='single'){
+    obj.t=singleType;
+    obj.k=parseFloat(document.getElementById('sl-K').value);
+    obj.iv=parseFloat(document.getElementById('sl-IV').value);
+    obj.d=parseFloat(document.getElementById('sl-T').value);
+  } else {
+    syncLegsFromDOM();
+    obj.legs=legs.map(l=>({t:l.type,dr:l.dir,k:l.K,iv:l.IV,d:l.T,q:l.qty}));
+  }
+  return btoa(JSON.stringify(obj));
+}
+
+function shareStrategy(){
+  const hash=encodeStrategy();
+  const url=location.origin+location.pathname+'#strat='+hash;
+  function showCopied(){
+    const btn=document.getElementById('shareBtn');
+    btn.textContent='Copied!';btn.classList.add('copied');
+    setTimeout(()=>{btn.textContent='Share';btn.classList.remove('copied');},1500);
+  }
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(url).then(showCopied).catch(()=>{fallbackCopy(url);showCopied();});
+  } else {fallbackCopy(url);showCopied();}
+}
+function fallbackCopy(text){
+  const ta=document.createElement('textarea');
+  ta.value=text;ta.style.position='fixed';ta.style.opacity='0';
+  document.body.appendChild(ta);ta.select();
+  document.execCommand('copy');
+  document.body.removeChild(ta);
+}
+
+function loadFromHash(){
+  const h=location.hash;
+  if(!h.startsWith('#strat='))return false;
+  try{
+    const obj=JSON.parse(atob(h.slice(7)));
+    if(obj.m==='single'){
+      switchMode('single');
+      if(obj.t)setSingleType(obj.t);
+      document.getElementById('sl-S').value=obj.s||100;
+      document.getElementById('sl-K').value=obj.k||100;
+      document.getElementById('sl-IV').value=obj.iv||25;
+      document.getElementById('sl-T').value=obj.d||30;
+      document.getElementById('sl-r').value=obj.r||4;
+      document.getElementById('sl-q').value=obj.q||0;
+      updateSpotRange();
+    } else {
+      switchMode('multi');
+      document.getElementById('sl-S').value=obj.s||100;
+      document.getElementById('sl-rm').value=obj.r||4;
+      document.getElementById('sl-qm').value=obj.q||0;
+      updateSpotRange();
+      legs=[];legIdCounter=0;
+      (obj.legs||[]).forEach(l=>addLeg({type:l.t,dir:l.dr,K:l.k,IV:l.iv,T:l.d,qty:l.q}));
+    }
+    update();
+    return true;
+  }catch(e){return false;}
+}
+
 rebuildTabs();
-update();
+if(!loadFromHash()) update();
 
 // Double-click on charts to reset spot to live price
 document.querySelector('.panel-center').addEventListener('dblclick',function(e){
