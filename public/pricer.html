@@ -2657,7 +2657,8 @@ function encodeStrategy(){
 
 function shareStrategy(){
   const hash=encodeStrategy();
-  const url=location.origin+location.pathname+'#strat='+hash;
+  const base=window.parent!==window?window.parent.location.origin:location.origin;
+  const url=base+'/#strat='+hash;
   function showCopied(){
     const btn=document.getElementById('shareBtn');
     btn.textContent='Copied!';btn.classList.add('copied');
@@ -2681,7 +2682,7 @@ function loadFromHash(){
   try{
     const obj=JSON.parse(atob(h.slice(7)));
     if(obj.m==='single'){
-      switchMode('single');
+      setMode('single');
       if(obj.t)setSingleType(obj.t);
       document.getElementById('sl-S').value=obj.s||100;
       document.getElementById('sl-K').value=obj.k||100;
@@ -2691,7 +2692,7 @@ function loadFromHash(){
       document.getElementById('sl-q').value=obj.q||0;
       updateSpotRange();
     } else {
-      switchMode('multi');
+      setMode('multi');
       document.getElementById('sl-S').value=obj.s||100;
       document.getElementById('sl-rm').value=obj.r||4;
       document.getElementById('sl-qm').value=obj.q||0;
@@ -2701,11 +2702,11 @@ function loadFromHash(){
     }
     update();
     return true;
-  }catch(e){return false;}
+  }catch(e){console.error('loadFromHash error:',e);return false;}
 }
 
 rebuildTabs();
-if(!loadFromHash()) update();
+if(loadFromHash()){rebuildTabs();update();}else{update();}
 
 // Double-click on charts to reset spot to live price
 document.querySelector('.panel-center').addEventListener('dblclick',function(e){
