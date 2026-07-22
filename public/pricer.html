@@ -302,6 +302,7 @@ input[type=range]:hover::-webkit-slider-thumb{background:var(--blue);}
 .va-toggle{display:flex;border:1px solid var(--border);border-radius:3px;overflow:hidden;}
 .va-toggle button{font-family:var(--mono);font-size:10px;font-weight:600;padding:4px 10px;border:none;background:var(--bg1);color:var(--text-dim);cursor:pointer;}
 .va-toggle button.active{background:var(--blue);color:white;}
+.va-spot{font-family:var(--mono);font-size:11px;color:var(--blue);font-weight:600;padding:3px 8px;background:rgba(37,99,235,0.08);border-radius:3px;}
 .va-status{font-family:var(--mono);font-size:10px;color:var(--text-dim);margin-left:auto;}
 .va-charts{display:grid;grid-template-columns:1fr;gap:16px;}
 .va-chart-card{background:var(--bg1);border:1px solid var(--border);border-radius:4px;padding:12px;}
@@ -635,10 +636,7 @@ input[type=range]:hover::-webkit-slider-thumb{background:var(--blue);}
         <input class="va-input" id="vaTicker" type="text" placeholder="AAPL" />
         <button class="va-btn va-btn-primary" id="vaFetchBtn" onclick="vaFetch()">FETCH</button>
         <select class="va-select" id="vaExpiry" style="display:none;" onchange="vaDrawSkew()"><option value="">Expiry...</option></select>
-        <div class="va-toggle" id="vaTypeToggle" style="display:none;">
-          <button class="active" onclick="vaSetType('call',this)">Calls</button>
-          <button onclick="vaSetType('put',this)">Puts</button>
-        </div>
+        <span class="va-spot" id="vaSpotLabel" style="display:none;"></span>
         <div class="va-toggle" id="vaViewToggle" style="display:none;">
           <button class="active" onclick="vaSetView('skew',this)">Skew</button>
           <button onclick="vaSetView('term',this)">Term Structure</button>
@@ -1031,7 +1029,7 @@ function applyLegDelta(legId){
 }
 
 /* ── Tabs ─────────────────────────────────── */
-const SINGLE_TABS=[{id:'payoff',label:'Payoff'},{id:'pnl',label:'P&L'},{id:'price',label:'Price vs spot'},{id:'delta',label:'Delta vs spot'},{id:'gamma',label:'Gamma vs spot'},{id:'vega',label:'Vega vs spot'},{id:'theta',label:'Theta decay'},{id:'iv_smile',label:'IV Smile'},{id:'vol_analysis',label:'Vol Analysis'}];
+const SINGLE_TABS=[{id:'payoff',label:'Payoff'},{id:'pnl',label:'P&L'},{id:'price',label:'Price vs spot'},{id:'delta',label:'Delta vs spot'},{id:'gamma',label:'Gamma vs spot'},{id:'vega',label:'Vega vs spot'},{id:'theta',label:'Theta decay'},{id:'vol_analysis',label:'Vol Analysis'}];
 const MULTI_TABS=[{id:'pnl',label:'P&L at expiry'},{id:'delta',label:'Net Delta'},{id:'gamma',label:'Net Gamma'},{id:'vega',label:'Net Vega'},{id:'theta',label:'Net Theta'}];
 
 function updateStrategyLabel(){
@@ -3220,7 +3218,6 @@ if(!localStorage.getItem('optionsPricerTourSeen')){
 let vaData={};
 let vaExpiries=[];
 let vaSpot=0;
-let vaType='call';
 let vaView='skew';
 let vaSkewChart=null;
 let vaTermChart=null;
@@ -3244,23 +3241,37 @@ async function vaFetch(){
     vaExpiries=expData.expirations;
     vaData={};
 
-    const maxExp=Math.min(vaExpiries.length,8);
+    // Sample expiries: dense near-term, sparse far out
+    const now=new Date();
+    const allWithDte=vaExpiries.map(d=>({d,dte:Math.round((new Date(d+'T16:00:00')-now)/(1000*60*60*24))}));
+    const selected=[];
+    let lastDte=-Infinity;
+    allWithDte.forEach(e=>{
+      let minGap;
+      if(e.dte<=90) minGap=0;           // every expiry within 3 months
+      else if(e.dte<=365) minGap=25;     // ~monthly for 3-12 months
+      else if(e.dte<=1095) minGap=80;    // ~quarterly for 1-3 years
+      else minGap=180;                   // ~semi-annual for 3-10 years
+      if(e.dte-lastDte>=minGap||e.dte<=90){selected.push(e.d);lastDte=e.dte;}
+    });
+    const maxExp=selected.length;
     document.getElementById('vaStatus').textContent='Loading chains (0/'+maxExp+')...';
 
     for(let i=0;i<maxExp;i++){
-      const exp=vaExpiries[i];
+      const exp=selected[i];
       const chain=await apiFetch('/api/tradier/chain?symbol='+encodeURIComponent(ticker)+'&expiration='+exp);
       if(chain&&chain.contracts)vaData[exp]=chain.contracts;
       document.getElementById('vaStatus').textContent='Loading chains ('+(i+1)+'/'+maxExp+')...';
     }
 
     const sel=document.getElementById('vaExpiry');
-    sel.innerHTML=vaExpiries.slice(0,maxExp).map(d=>{
-      const dte=Math.round((new Date(d+'T16:00:00')-new Date())/(1000*60*60*24));
-      return`<option value="${d}">${d} (${dte}d)</option>`;
+    sel.innerHTML=selected.map(d=>{
+      const dte=Math.round((new Date(d+'T16:00:00')-now)/(1000*60*60*24));
+      const label=dte<365?dte+'d':+(dte/365).toFixed(1)+'y';
+      return`<option value="${d}">${d} (${label})</option>`;
     }).join('');
     sel.style.display='';
-    document.getElementById('vaTypeToggle').style.display='';
+    if(vaSpot>0){const sl=document.getElementById('vaSpotLabel');sl.textContent='Spot $'+vaSpot.toFixed(2);sl.style.display='';}
     document.getElementById('vaViewToggle').style.display='';
     document.getElementById('vaEmpty').style.display='none';
 
@@ -3274,13 +3285,6 @@ async function vaFetch(){
   btn.disabled=false;
 }
 
-function vaSetType(t,el){
-  vaType=t;
-  el.parentElement.querySelectorAll('button').forEach(b=>b.classList.remove('active'));
-  el.classList.add('active');
-  vaDrawSkew();
-  vaDrawTerm();
-}
 
 function vaSetView(v,el){
   vaView=v;
@@ -3298,17 +3302,34 @@ function vaDrawSkew(){
   const exp=document.getElementById('vaExpiry').value;
   const contracts=vaData[exp];
   if(!contracts){return;}
-  const filtered=contracts.filter(c=>c.option_type===vaType&&c.implied_volatility>0).sort((a,b)=>a.strike-b.strike);
-  if(filtered.length===0)return;
+  // Combine calls and puts: use puts for strikes below spot, calls for strikes above (or all if no spot)
+  const allOpts=contracts.filter(c=>c.implied_volatility>0).sort((a,b)=>a.strike-b.strike);
+  if(allOpts.length===0)return;
+  // Deduplicate by strike: prefer put IV below spot, call IV above spot (standard skew convention)
+  const byStrike={};
+  allOpts.forEach(c=>{
+    const k=c.strike;
+    if(!byStrike[k]){byStrike[k]=c;return;}
+    if(vaSpot>0){
+      if(k<vaSpot&&c.option_type==='put')byStrike[k]=c;
+      else if(k>vaSpot&&c.option_type==='call')byStrike[k]=c;
+      else if(k===vaSpot){byStrike[k]=c.option_type==='call'?c:byStrike[k];}
+    } else {
+      if(c.option_type==='call')byStrike[k]=c;
+    }
+  });
+  const filtered=Object.values(byStrike).sort((a,b)=>a.strike-b.strike);
 
   const dte=Math.round((new Date(exp+'T16:00:00')-new Date())/(1000*60*60*24));
-  document.getElementById('vaSkewLabel').textContent=exp+' ('+dte+'d) — '+vaType+'s';
+  const spotStr=vaSpot>0?' · Spot $'+vaSpot.toFixed(0):'';
+  document.getElementById('vaSkewLabel').textContent=exp+' ('+dte+'d)'+spotStr;
 
-  const labels=filtered.map(c=>c.strike.toFixed(0));
+  const useMoneyness=vaSpot>0;
+  const labels=filtered.map(c=>useMoneyness?(c.strike/vaSpot*100).toFixed(1):c.strike.toFixed(0));
   const ivData=filtered.map(c=>+(c.implied_volatility*100).toFixed(2));
   const volData=filtered.map(c=>c.volume||0);
 
-  const xCb=(v,i)=>labels[i]!=null?'$'+labels[i]:'';
+  const xCb=(v,i)=>labels[i]!=null?(useMoneyness?labels[i]+'%':'$'+labels[i]):'';
   const yCb=v=>v.toFixed(1)+'%';
 
   if(vaSkewChart){
@@ -3322,12 +3343,11 @@ function vaDrawSkew(){
     vaSkewChart=new Chart(ctx,{type:'line',data:{labels,datasets:[
       {label:'IV %',data:ivData,borderColor:'#7C3AED',borderWidth:2,tension:0.3,pointRadius:3,pointBackgroundColor:'#7C3AED',fill:false,yAxisID:'y'},
       {label:'Volume',data:volData,type:'bar',backgroundColor:'rgba(37,99,235,0.15)',borderColor:'rgba(37,99,235,0.3)',borderWidth:1,yAxisID:'y1'}
-    ]},options:{responsive:true,maintainAspectRatio:false,animation:false,interaction:{mode:'index',intersect:false},plugins:{legend:{display:true,labels:{font:{family:'JetBrains Mono',size:10},color:'#8B95A5',boxWidth:12}},tooltip:{backgroundColor:'#fff',borderColor:'rgba(0,0,0,0.12)',borderWidth:1,titleColor:'#4B5368',bodyColor:'#111318',padding:10,titleFont:{family:'JetBrains Mono',size:11},bodyFont:{family:'JetBrains Mono',size:12},callbacks:{title:c=>'Strike: $'+c[0].label,label:c=>c.datasetIndex===0?' IV: '+c.parsed.y.toFixed(2)+'%':' Vol: '+c.parsed.y.toLocaleString()}}},scales:vaScales(xCb,yCb,volData)}});
+    ]},options:{responsive:true,maintainAspectRatio:false,animation:false,interaction:{mode:'index',intersect:false},plugins:{legend:{display:true,labels:{font:{family:'JetBrains Mono',size:10},color:'#8B95A5',boxWidth:12}},tooltip:{backgroundColor:'#fff',borderColor:'rgba(0,0,0,0.12)',borderWidth:1,titleColor:'#4B5368',bodyColor:'#111318',padding:10,titleFont:{family:'JetBrains Mono',size:11},bodyFont:{family:'JetBrains Mono',size:12},callbacks:{title:c=>{const m=c[0].label;return useMoneyness?'Moneyness: '+m+'%':'Strike: $'+m;},label:c=>c.datasetIndex===0?' IV: '+c.parsed.y.toFixed(2)+'%':' Vol: '+c.parsed.y.toLocaleString()}}},scales:vaScales(xCb,yCb,volData)}});
   }
 
-  if(vaSpot>0){
-    const spotIdx=filtered.reduce((best,c,i)=>Math.abs(c.strike-vaSpot)<Math.abs(filtered[best].strike-vaSpot)?i:best,0);
-    vaSkewChart.options.plugins.annotation=vaSpotAnnotation(labels[spotIdx]);
+  if(vaSpot>0&&useMoneyness){
+    vaSkewChart.options.plugins.annotation=vaSpotAnnotation('100.0');
     vaSkewChart.update('none');
   }
 }
@@ -3342,7 +3362,7 @@ function vaScales(xCb,yCb,volData){
 }
 
 function vaSpotAnnotation(label){
-  return{annotations:{spotLine:{type:'line',xMin:label,xMax:label,borderColor:'rgba(37,99,235,0.5)',borderWidth:1,borderDash:[4,3],label:{display:true,content:'Spot',position:'start',font:{size:9},color:'rgba(37,99,235,0.7)'}}}}
+  return{annotations:{spotLine:{type:'line',xMin:label,xMax:label,borderColor:'rgba(37,99,235,0.5)',borderWidth:1,borderDash:[4,3],label:{display:true,content:'ATM',position:'start',font:{size:9},color:'rgba(37,99,235,0.7)'}}}}
 }
 
 function vaDrawTerm(){
@@ -3356,20 +3376,20 @@ function vaDrawTerm(){
   expKeys.forEach(exp=>{
     const contracts=vaData[exp];
     if(!contracts)return;
-    const filtered=contracts.filter(c=>c.option_type===vaType&&c.implied_volatility>0);
-    if(filtered.length===0)return;
+    const allValid=contracts.filter(c=>c.implied_volatility>0);
+    if(allValid.length===0)return;
 
-    let atm=filtered[0];
-    if(vaSpot>0)atm=filtered.reduce((best,c)=>Math.abs(c.strike-vaSpot)<Math.abs(best.strike-vaSpot)?c:best,filtered[0]);
+    let atm=allValid[0];
+    if(vaSpot>0)atm=allValid.reduce((best,c)=>Math.abs(c.strike-vaSpot)<Math.abs(best.strike-vaSpot)?c:best,allValid[0]);
 
     const dte=Math.round((new Date(exp+'T16:00:00')-new Date())/(1000*60*60*24));
-    labels.push(dte+'d');
+    labels.push(dte<365?dte+'d':+(dte/365).toFixed(1)+'y');
     ivData.push(+(atm.implied_volatility*100).toFixed(2));
-    const totalOI=filtered.reduce((s,c)=>s+(c.open_interest||0),0);
+    const totalOI=allValid.reduce((s,c)=>s+(c.open_interest||0),0);
     oiData.push(totalOI);
   });
 
-  document.getElementById('vaTermLabel').textContent='ATM IV by expiry — '+vaType+'s'+(vaSpot>0?' (spot $'+vaSpot.toFixed(0)+')':'');
+  document.getElementById('vaTermLabel').textContent='ATM IV by expiry'+(vaSpot>0?' · Spot $'+vaSpot.toFixed(0):'');
 
   const xCb=(v,i)=>labels[i]||'';
   const yCb=v=>v.toFixed(1)+'%';
