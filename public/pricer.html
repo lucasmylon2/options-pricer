@@ -178,7 +178,10 @@ input[type=range]:hover::-webkit-slider-thumb{background:var(--blue);}
 .greek-desc{font-size:10px;color:var(--text-dim);margin-top:3px;line-height:1.4;}
 .shock-row{display:flex;justify-content:space-between;align-items:center;padding:5px 14px;border-top:1px solid var(--border);transition:background 0.1s;}
 .shock-row:hover{background:var(--bg2);}
-.shock-label{font-size:11px;color:var(--text-secondary);}
+.shock-label{font-size:11px;color:var(--text-secondary);display:flex;align-items:center;gap:0;}
+.shock-input{width:32px;border:none;border-bottom:1px dashed var(--border);background:transparent;font-size:11px;color:var(--text-primary);font-family:var(--mono);text-align:center;padding:0 2px;margin:0 2px;outline:none;-moz-appearance:textfield;}
+.shock-input::-webkit-inner-spin-button,.shock-input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0;}
+.shock-input:focus{border-bottom-color:var(--blue);background:var(--bg2);}
 .shock-right{text-align:right;}
 .shock-new{font-family:var(--mono);font-size:11px;color:var(--text-primary);}
 .shock-chg{font-family:var(--mono);font-size:10px;}
@@ -1048,9 +1051,10 @@ function updateStrategyLabel(){
     const name=detectStrategyName();
     nameEl.textContent=name;
     const strikes=legs.map(l=>l.K).sort((a,b)=>a-b);
-    const dte=legs.length?legs[0].T+'d':'';
-    const strikesStr=strikes.join('/');
-    detailEl.innerHTML=tickerStr+(strikesStr?strikesStr+' · ':'')+dte;
+    const dteSet=[...new Set(legs.map(l=>l.T))].sort((a,b)=>a-b);
+    const dteStr=dteSet.length>1?dteSet.join('/')+'d':dteSet.length?dteSet[0]+'d':'';
+    const strikesStr=[...new Set(strikes)].join('/');
+    detailEl.innerHTML=tickerStr+(strikesStr?strikesStr+' · ':'')+dteStr;
   }
 }
 
@@ -1064,6 +1068,10 @@ function detectStrategyName(){
   const longs=legs.filter(l=>l.dir==='long');
   const shorts=legs.filter(l=>l.dir==='short');
   const strikes=[...new Set(legs.map(l=>l.K))].sort((a,b)=>a-b);
+  const dtes=[...new Set(legs.map(l=>l.T))];
+  if(legs.length===2&&longs.length===1&&shorts.length===1&&strikes.length===1&&dtes.length===2&&(calls.length===2||puts.length===2)){
+    return 'Calendar Spread';
+  }
   if(legs.length===2&&calls.length===2&&longs.length===1&&shorts.length===1){
     const lo=legs.find(l=>l.dir==='long'),sh=legs.find(l=>l.dir==='short');
     return lo.K<sh.K?'Bull Call Spread':'Bear Call Spread';
@@ -1118,7 +1126,7 @@ function setChart(m){
     document.getElementById('aiInput').focus();
   } else {
     mcw.style.display='';cf.style.display='';gs.style.display='';
-    mainChartYOverride=null;mainChartXOverride=null;
+    mainChartYOverride=null;mainChartXOverride=null;mainChartHomeY=null;
     update();
   }
 }
@@ -1264,19 +1272,31 @@ function computeNetGreeks(S,r,q){
 /* ── Payoff at expiry for multi-leg ─────── */
 function multiPayoff(spot,S,r,q){
   syncLegsFromDOM();
+  // Find minimum DTE across option legs for calendar-aware valuation
+  let minDTE=Infinity;
+  legs.forEach(leg=>{
+    if(leg.type==='stock')return;
+    const T=Math.max(1,(parseFloat(getLegVal(leg.id,'T'))||30)+getDteShift());
+    if(T<minDTE)minDTE=T;
+  });
+  if(!isFinite(minDTE))minDTE=30;
   let total=0;
   legs.forEach(leg=>{
     const sign=leg.dir==='long'?1:-1;
     const qty=parseFloat(getLegVal(leg.id,'qty'))||1;
-    if(leg.type==='stock'){total+=sign*qty*(spot-S);return;} // relative to entry
+    if(leg.type==='stock'){total+=sign*qty*(spot-S);return;}
     const K=parseFloat(getLegVal(leg.id,'K'))||100;
     const IV=Math.max(1,(parseFloat(getLegVal(leg.id,'IV'))||25)+getIvShift());
-    const T=Math.max(1,(parseFloat(getLegVal(leg.id,'T'))||30)+getDteShift())/365;
-    // entry premium
-    const entry=bs(S,K,T,r,q,IV/100,leg.type).price;
-    // payoff at expiry
-    const payoff=leg.type==='call'?Math.max(spot-K,0):Math.max(K-spot,0);
-    total+=sign*qty*(payoff-entry);
+    const T=Math.max(1,(parseFloat(getLegVal(leg.id,'T'))||30)+getDteShift());
+    const entry=bs(S,K,T/365,r,q,IV/100,leg.type).price;
+    const remDays=T-minDTE;
+    let exitVal;
+    if(remDays<1){
+      exitVal=leg.type==='call'?Math.max(spot-K,0):Math.max(K-spot,0);
+    } else {
+      exitVal=bs(spot,K,remDays/365,r,q,IV/100,leg.type).price;
+    }
+    total+=sign*qty*(exitVal-entry);
   });
   return total;
 }
@@ -1354,6 +1374,7 @@ const tooltipCfg=(isDollar)=>({backgroundColor:'#fff',borderColor:'rgba(0,0,0,0.
 /* ── Draw main chart ─────────────────────── */
 let mainChartYOverride=null;
 let mainChartXOverride=null;
+let mainChartHomeY=null;
 function drawMainChart(S,r,q,singleRes,singlePremium){
   const spots=spotRange(S,120);
   let labels=spots.map(sp=>sp.toFixed(1));
@@ -1418,16 +1439,25 @@ function drawMainChart(S,r,q,singleRes,singlePremium){
     if(chartMode==='pnl'){
       const pnlData=spots.map(sp=>+multiPayoff(sp,S,r,q).toFixed(4));
       datasets=[{label:'Net P&L',data:pnlData,borderColor:'#2563EB',borderWidth:2.5,tension:0.1,pointRadius:0,fill:{target:'origin',above:'rgba(37,99,235,0.06)',below:'rgba(220,38,38,0.06)'}}];
-      // individual leg payoffs as thin lines
+      // individual leg payoffs as thin lines (calendar-aware)
+      let minDTEChart=Infinity;
+      legs.forEach(leg=>{if(leg.type==='stock')return;const T=Math.max(1,(parseFloat(getLegVal(leg.id,'T'))||30)+getDteShift());if(T<minDTEChart)minDTEChart=T;});
+      if(!isFinite(minDTEChart))minDTEChart=30;
       legs.forEach((leg,idx)=>{
         if(leg.type==='stock')return;
         const K=parseFloat(getLegVal(leg.id,'K'))||100;
         const IV=Math.max(1,(parseFloat(getLegVal(leg.id,'IV'))||25)+getIvShift());
-        const T=Math.max(1,(parseFloat(getLegVal(leg.id,'T'))||30)+getDteShift())/365;
-        const entry=bs(S,K,T,r,q,IV/100,leg.type).price;
+        const T=Math.max(1,(parseFloat(getLegVal(leg.id,'T'))||30)+getDteShift());
+        const entry=bs(S,K,T/365,r,q,IV/100,leg.type).price;
         const sign=leg.dir==='long'?1:-1;
         const qty=parseFloat(getLegVal(leg.id,'qty'))||1;
-        const legData=spots.map(sp=>{const pf=leg.type==='call'?Math.max(sp-K,0):Math.max(K-sp,0);return+(sign*qty*(pf-entry)).toFixed(4);});
+        const remDays=T-minDTEChart;
+        const legData=spots.map(sp=>{
+          let exitVal;
+          if(remDays<1){exitVal=leg.type==='call'?Math.max(sp-K,0):Math.max(K-sp,0);}
+          else{exitVal=bs(sp,K,remDays/365,r,q,IV/100,leg.type).price;}
+          return+(sign*qty*(exitVal-entry)).toFixed(4);
+        });
         datasets.push({label:`L${idx+1}`,data:legData,borderColor:legColor(idx),borderWidth:1,borderDash:[4,3],tension:0.1,pointRadius:0,fill:false});
       });
     } else if(chartMode==='pdf'){
@@ -1471,8 +1501,20 @@ function drawMainChart(S,r,q,singleRes,singlePremium){
 
   const yCb=chartMode==='iv_smile'?v=>v.toFixed(1)+'%':chartMode==='pdf'?v=>v.toFixed(4):v=>isDollar?(v>=0?'$':'-$')+Math.abs(v).toFixed(1):v.toFixed(3);
   const plOpts={currentPriceLine:{show:true,showLabel:true}};
-  if(mainChart){mainChart.data.labels=labels;mainChart.data.datasets=datasets;const sc=baseScales(xCb,yCb);if(mainChartYOverride){sc.y.min=mainChartYOverride.min;sc.y.max=mainChartYOverride.max;}if(mainChartXOverride){sc.x.min=mainChartXOverride.min;sc.x.max=mainChartXOverride.max;}mainChart.options.scales=sc;mainChart.options.plugins.tooltip=tooltipCfg(isDollar);mainChart.options.plugins.currentPriceLine=plOpts.currentPriceLine;mainChart.update('none');}
-  else{const ctx=document.getElementById('mainChart').getContext('2d');mainChart=new Chart(ctx,{type:'line',data:{labels,datasets},options:{responsive:true,maintainAspectRatio:false,resizeDelay:100,animation:NO_ANIM,transitions:{resize:{animation:RESIZE_ANIM}},interaction:{mode:'index',intersect:false},plugins:{legend:{display:false},tooltip:tooltipCfg(isDollar),...plOpts},scales:baseScales(xCb,yCb)}});}
+  // Compute home Y range from primary dataset (net P&L) so individual legs don't stretch axis
+  if(datasets.length>0&&datasets[0].data.length>0){
+    const primary=datasets[0].data.filter(v=>v!=null&&isFinite(v));
+    if(primary.length>0){
+      let dMin=Math.min(...primary),dMax=Math.max(...primary);
+      if(dMin===dMax){dMin-=1;dMax+=1;}
+      const pad=(dMax-dMin)*0.2;
+      mainChartHomeY={min:dMin-pad,max:dMax+pad};
+    }
+  }
+  // Apply Y range: user override > home range > Chart.js auto
+  const effectiveY=mainChartYOverride||mainChartHomeY;
+  if(mainChart){mainChart.data.labels=labels;mainChart.data.datasets=datasets;const sc=baseScales(xCb,yCb);if(effectiveY){sc.y.min=effectiveY.min;sc.y.max=effectiveY.max;}if(mainChartXOverride){sc.x.min=mainChartXOverride.min;sc.x.max=mainChartXOverride.max;}mainChart.options.scales=sc;mainChart.options.plugins.tooltip=tooltipCfg(isDollar);mainChart.options.plugins.currentPriceLine=plOpts.currentPriceLine;mainChart.update('none');}
+  else{const ctx=document.getElementById('mainChart').getContext('2d');const sc=baseScales(xCb,yCb);if(effectiveY){sc.y.min=effectiveY.min;sc.y.max=effectiveY.max;}mainChart=new Chart(ctx,{type:'line',data:{labels,datasets},options:{responsive:true,maintainAspectRatio:false,resizeDelay:100,animation:NO_ANIM,transitions:{resize:{animation:RESIZE_ANIM}},interaction:{mode:'index',intersect:false},plugins:{legend:{display:false},tooltip:tooltipCfg(isDollar),...plOpts},scales:sc}});}
 
   // footer
   buildFooter(S,r,q,singlePremium);
@@ -1721,8 +1763,41 @@ function update(){
       return tot;
     }
   };
-  const shocks=[{label:'Spot +5%',fn:()=>shockFn(0.05,0,0,0,0)},{label:'Spot -5%',fn:()=>shockFn(-0.05,0,0,0,0)},{label:'IV +5 pts',fn:()=>shockFn(0,0.05,0,0,0)},{label:'IV -5 pts',fn:()=>shockFn(0,-0.05,0,0,0)},{label:'-7 days',fn:()=>shockFn(0,0,-7/365,0,0)},{label:'-30 days',fn:()=>shockFn(0,0,-30/365,0,0)},{label:'Rate +1%',fn:()=>shockFn(0,0,0,0.01,0)},{label:'Div +1%',fn:()=>shockFn(0,0,0,0,0.01)}];
-  document.getElementById('shock-rows').innerHTML=shocks.map(s=>{const np=s.fn(),diff=np-price;const cls=Math.abs(diff)<0.001?'snt':diff>0?'sup':'sdn';return`<div class="shock-row"><span class="shock-label">${s.label}</span><div class="shock-right"><div class="shock-new">${fmtD(np)}</div><div class="shock-chg ${cls}">${diff>0?'+':''}${fmtD(diff)}</div></div></div>`;}).join('');
+  if(!window._shockVals)window._shockVals={s1:5,s2:-5,iv1:5,iv2:-5,t1:7,t2:30,r1:1,q1:1};
+  const sv=window._shockVals;
+  const shocks=[
+    {id:'s1',pre:'Spot ',suf:'%',fn:v=>shockFn(v/100,0,0,0,0)},
+    {id:'s2',pre:'Spot ',suf:'%',fn:v=>shockFn(v/100,0,0,0,0)},
+    {id:'iv1',pre:'IV ',suf:' pts',fn:v=>shockFn(0,v/100,0,0,0)},
+    {id:'iv2',pre:'IV ',suf:' pts',fn:v=>shockFn(0,v/100,0,0,0)},
+    {id:'t1',pre:'',suf:' days',fn:v=>shockFn(0,0,v/365,0,0)},
+    {id:'t2',pre:'',suf:' days',fn:v=>shockFn(0,0,v/365,0,0)},
+    {id:'r1',pre:'Rate ',suf:'%',fn:v=>shockFn(0,0,0,v/100,0)},
+    {id:'q1',pre:'Div ',suf:'%',fn:v=>shockFn(0,0,0,0,v/100)},
+  ];
+  const container=document.getElementById('shock-rows');
+  const existingInputs=container.querySelectorAll('.shock-input');
+  const needsRebuild=existingInputs.length!==shocks.length;
+  if(needsRebuild){
+    container.innerHTML=shocks.map(s=>{
+      const v=sv[s.id];
+      const sign=v>0?'+':'';
+      return`<div class="shock-row"><span class="shock-label">${s.pre}<input class="shock-input" data-shock="${s.id}" type="number" value="${v}" step="1">${s.suf}</span><div class="shock-right"><div class="shock-new" data-shock-val="${s.id}"></div><div class="shock-chg" data-shock-chg="${s.id}"></div></div></div>`;
+    }).join('');
+    container.querySelectorAll('.shock-input').forEach(inp=>{
+      inp.addEventListener('change',function(){sv[this.dataset.shock]=parseFloat(this.value)||0;update();});
+      inp.addEventListener('keydown',function(e){if(e.key==='Enter'){this.blur();sv[this.dataset.shock]=parseFloat(this.value)||0;update();}});
+    });
+  }
+  shocks.forEach(s=>{
+    const v=sv[s.id];
+    const np=s.fn(v),diff=np-price;
+    const cls=Math.abs(diff)<0.001?'snt':diff>0?'sup':'sdn';
+    const valEl=container.querySelector(`[data-shock-val="${s.id}"]`);
+    const chgEl=container.querySelector(`[data-shock-chg="${s.id}"]`);
+    if(valEl)valEl.textContent=fmtD(np);
+    if(chgEl){chgEl.textContent=(diff>0?'+':'')+fmtD(diff);chgEl.className='shock-chg '+cls;}
+  });
 
   drawMainChart(S,r,q,netGreeks,singlePremium);
   drawMiniCharts(S,r,q);
@@ -2794,7 +2869,7 @@ document.querySelector('.panel-center').addEventListener('dblclick',function(e){
   });
   canvas.addEventListener('dblclick',function(e){
     if(isOnAxis(e))return;
-    mainChartXOverride=null;mainChartYOverride=null;
+    mainChartXOverride=null;mainChartYOverride=null;mainChartHomeY=null;
     document.getElementById('resetViewBtn').style.display='none';
     update();
   });
@@ -2871,7 +2946,7 @@ document.querySelector('.panel-center').addEventListener('dblclick',function(e){
   },{passive:false});
   canvas.addEventListener('dblclick',function(e){
     if(!isOnYAxis(e))return;
-    mainChartYOverride=null;
+    mainChartYOverride=null;mainChartHomeY=null;
     document.getElementById('resetViewBtn').style.display='none';
     update();
   });
@@ -2985,14 +3060,17 @@ function buildStratLabel(action){
     const type=l.type==='call'?'Call':'Put';
     return (ticker?ticker+' ':'')+'Long '+type+' K'+l.strike;
   }
-  const tmpLegs=action.legs.map(l=>({type:l.type,dir:l.direction,K:l.strike}));
+  const tmpLegs=action.legs.map(l=>({type:l.type,dir:l.direction,K:l.strike,T:l.dte}));
   const calls=tmpLegs.filter(l=>l.type==='call');
   const puts=tmpLegs.filter(l=>l.type==='put');
   const longs=tmpLegs.filter(l=>l.dir==='long');
   const shorts=tmpLegs.filter(l=>l.dir==='short');
   const strikes=[...new Set(tmpLegs.map(l=>l.K))].sort((a,b)=>a-b);
+  const dtes=[...new Set(tmpLegs.map(l=>l.T).filter(t=>t!=null))];
   let name=tmpLegs.length+'-Leg Strategy';
-  if(tmpLegs.length===2&&calls.length===2&&longs.length===1&&shorts.length===1){
+  if(tmpLegs.length===2&&longs.length===1&&shorts.length===1&&strikes.length===1&&dtes.length===2&&(calls.length===2||puts.length===2)){
+    name='Calendar Spread';
+  } else if(tmpLegs.length===2&&calls.length===2&&longs.length===1&&shorts.length===1){
     const lo=tmpLegs.find(l=>l.dir==='long'),sh=tmpLegs.find(l=>l.dir==='short');
     name=lo.K<sh.K?'Bull Call Spread':'Bear Call Spread';
   } else if(tmpLegs.length===2&&puts.length===2&&longs.length===1&&shorts.length===1){
@@ -3053,7 +3131,7 @@ function updateStratHistoryUI(){
 document.getElementById('aiInput').addEventListener('input',function(){this.style.height='auto';this.style.height=Math.min(this.scrollHeight,100)+'px';});
 
 document.getElementById('resetViewBtn').addEventListener('click',function(){
-  mainChartXOverride=null;mainChartYOverride=null;
+  mainChartXOverride=null;mainChartYOverride=null;mainChartHomeY=null;
   this.style.display='none';
   update();
 });
