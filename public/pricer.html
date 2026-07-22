@@ -3152,15 +3152,18 @@ document.getElementById('resetViewBtn').addEventListener('click',function(){
 
 /* ── Guided Tour ─────────────────────────── */
 const tourSteps=[
-  {el:'.topbar-left',title:'MODE SELECTION',body:'Switch between <b>Single Leg</b> for individual options and <b>Strategy</b> for multi-leg structures like spreads, strangles, and custom combos.'},
+  {el:'.topbar-left',title:'MODE SELECTION',body:'Switch between <b>Single Leg</b> for individual options and <b>Strategy</b> for multi-leg structures like spreads, strangles, condors, butterflies, and calendar spreads.'},
   {el:'#tickerInput',title:'SMART SEARCH',body:'Type a ticker to browse the chain, or use formulas:<br><code>aapl 17jul26 300 c</code> — single option<br><code>aapl jul26 300 c</code> — term structure<br><code>aapl 17jul26 300 320 cs</code> — call spread'},
   {el:'.p-section',title:'SPOT & RANGE',body:'Drag the spot slider to see how price and Greeks change in real time. Use the range presets to zoom in on penny stocks or zoom out for high-priced names. <b>Click-drag on any chart</b> to scrub spot.'},
   {el:'.anim-section',title:'ANIMATIONS',body:'Sweep spot price across the range, decay time to expiry, or run both simultaneously. Great for visualizing theta burn and delta transitions.'},
-  {el:'.main-chart-wrap',title:'MAIN CHART',body:'The primary visualization — toggle between payoff, P&L, price vs spot, individual Greeks, theta decay, and IV smile views using the tabs above.'},
+  {el:'.main-chart-wrap',title:'MAIN CHART',body:'The primary visualization — toggle between payoff, P&L, price vs spot, individual Greeks, and theta decay using the tabs above. <b>Click-drag</b> to zoom, <b>double-click</b> to reset view.'},
   {el:'.greek-grid',title:'GREEK CHARTS',body:'Each Greek plotted against spot price (or time for theta). The current value is shown in the corner. <b>Double-click</b> any chart to reset spot to the live price.'},
   {el:'#overlayToggles',title:'OVERLAY CHART',body:'Combine multiple Greeks and payoff on one chart with dual Y-axes. Toggle each series on/off to compare relationships — e.g., see where gamma peaks relative to your payoff.'},
   {el:'.greek-tape',title:'GREEK TAPE',body:'A quick-glance ticker tape showing all Greeks, d1, and d2 for the current position. Updates live as you move sliders.'},
-  {el:'.panel-right',title:'NET GREEKS & SCENARIOS',body:'Full Greek breakdown with bar gauges, scenario shocks (what if spot ±5%, IV ±5 pts, etc.), and position decomposition for multi-leg strategies.'},
+  {el:'#shockHeading',title:'SCENARIO SHOCKS',body:'Stress-test your position — see how price changes with spot moves, IV shifts, time decay, and rate changes. <b>Click any value</b> (like ±5%) to edit it and run custom shock scenarios.'},
+  {el:'#shareBtn',title:'SHAREABLE LINKS',body:'Click <b>Share</b> to copy a URL that encodes your exact strategy — ticker, legs, strikes, IVs, and DTEs. Anyone with the link sees the same position.'},
+  {el:'#tab-vol_analysis',title:'VOL ANALYSIS',body:'Live IV skew and term structure charts powered by real market data. Enter any ticker to see the <b>moneyness-based skew</b> (OTM puts + calls) and <b>term structure</b> out to ~10 years with smart expiry sampling.',before:()=>{setChart('vol_analysis');}},
+  {el:'#aiTopBtn',title:'AI ASSISTANT',body:'Chat with an AI copilot that fetches live options data and loads strategies from natural language. Try: <i>"show me an iron condor on SPY"</i> or <i>"show me the TSLA term structure"</i> — it can load strategies and open Vol Analysis directly.',before:()=>{setChart('payoff');}},
 ];
 let tourIdx=-1,tourHighlight=null,tourTooltip=null,tourOverlay=null,tourTimer=null;
 
@@ -3186,17 +3189,21 @@ function endTour(){
   if(tourHighlight)tourHighlight.style.display='none';
   if(tourTooltip)tourTooltip.style.display='none';
   tourIdx=-1;
+  if(chartMode==='vol_analysis'||chartMode==='ai')setChart('payoff');
 }
 
 function showTourStep(){
   if(tourTimer){clearTimeout(tourTimer);tourTimer=null;}
   if(tourIdx<0||tourIdx>=tourSteps.length){endTour();return;}
   const step=tourSteps[tourIdx];
+  if(step.before)step.before();
   const target=document.querySelector(step.el);
   if(!target){tourIdx++;showTourStep();return;}
   const scrollParent=target.closest('.panel-left,.panel-center,.panel-right');
-  if(scrollParent)scrollParent.scrollTop=0;
-  target.scrollIntoView({behavior:'smooth',block:'nearest'});
+  if(scrollParent){
+    const elTop=target.offsetTop;
+    scrollParent.scrollTop=Math.max(0,elTop-scrollParent.clientHeight/3);
+  }
   tourTimer=setTimeout(()=>{
     if(tourIdx<0)return;
     const r=target.getBoundingClientRect();
@@ -3216,12 +3223,13 @@ function showTourStep(){
     let tx=r.left;
     let ty=r.bottom+12;
     if(ty+tt.height>window.innerHeight){ty=r.top-tt.height-12;}
+    if(ty<4)ty=Math.min(r.top+pad,window.innerHeight-tt.height-4);
     if(ty<4)ty=4;
     if(tx+tt.width>window.innerWidth-8)tx=window.innerWidth-tt.width-8;
     if(tx<4)tx=4;
     tourTooltip.style.left=tx+'px';
     tourTooltip.style.top=ty+'px';
-  },150);
+  },300);
 }
 
 // Show banner on first visit
