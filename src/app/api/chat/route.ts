@@ -19,9 +19,12 @@ When you want the user to see a specific strategy in the pricer, return a load_s
 Key capabilities:
 - Fetch live stock quotes and options chains
 - Analyze IV skew, term structure, and greeks
+- Show interactive vol analysis (IV skew and term structure charts) for any ticker
 - Suggest optimal strategies based on market view
 - Compare strategies side-by-side
 - Explain risk/reward and greeks in context
+
+When the user asks to see vol analysis, IV skew, term structure, or volatility surface for a ticker, use the show_vol_analysis tool. This switches the pricer to the Vol Analysis tab and fetches live data. You can specify view: "skew" for IV smile, "term" for term structure.
 
 Be concise and direct. Use actual numbers from the data. Format currency values and percentages clearly. When suggesting strategies, always explain the tradeoff.
 
@@ -133,6 +136,18 @@ const tools: Anthropic.Messages.Tool[] = [
     },
   },
   {
+    name: 'show_vol_analysis',
+    description: 'Show the Vol Analysis tab with IV skew and term structure charts for a ticker. Use when the user asks about vol surface, IV skew, term structure, or volatility analysis.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        symbol: { type: 'string', description: 'Ticker symbol e.g. TSLA' },
+        view: { type: 'string', enum: ['skew', 'term'], description: 'Which view to show: "skew" for IV smile/skew, "term" for term structure. Defaults to skew.' },
+      },
+      required: ['symbol'],
+    },
+  },
+  {
     name: 'load_strategy',
     description: 'Load a strategy into the pricer for the user to visualize. Use this when suggesting a trade so the user can see the payoff diagram, greeks, and scenario analysis.',
     input_schema: {
@@ -170,6 +185,8 @@ async function handleToolCall(name: string, input: Record<string, unknown>) {
       return await getExpirations(input.symbol as string);
     case 'get_chain':
       return await getChain(input.symbol as string, input.expiration as string);
+    case 'show_vol_analysis':
+      return { action: 'show_vol_analysis', ...input };
     case 'load_strategy':
       return { action: 'load_strategy', ...input };
     default:
@@ -228,8 +245,7 @@ export async function POST(req: Request) {
           for (const toolBlock of toolUseBlocks) {
             const result = await handleToolCall(toolBlock.name, toolBlock.input as Record<string, unknown>);
 
-            // Send load_strategy actions to frontend
-            if (toolBlock.name === 'load_strategy') {
+            if (toolBlock.name === 'show_vol_analysis' || toolBlock.name === 'load_strategy') {
               controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'action', action: result })}\n\n`));
             }
 

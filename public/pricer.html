@@ -3026,6 +3026,22 @@ function renderMd(text){
     .replace(/\n/g,'<br>');
 }
 function handleAiAction(action){
+  if(action.action==='show_vol_analysis'){
+    const container=document.getElementById('aiMessages');
+    const div=document.createElement('div');
+    div.className='ai-msg ai-msg-action';
+    const content=document.createElement('div');
+    content.className='ai-msg-content';
+    content.textContent='📈 Vol Analysis: '+action.symbol.toUpperCase();
+    div.appendChild(content);
+    container.appendChild(div);
+    container.scrollTop=container.scrollHeight;
+    setChart('vol_analysis');
+    document.getElementById('vaTicker').value=action.symbol.toUpperCase();
+    if(action.view==='term') vaView='term';
+    else vaView='skew';
+    vaFetch();
+  }
   if(action.action==='load_strategy'&&action.legs){
     const container=document.getElementById('aiMessages');
     const div=document.createElement('div');
@@ -3296,6 +3312,8 @@ function vaSetView(v,el){
 function vaShowView(){
   document.getElementById('vaSkewCard').style.display=vaView==='skew'?'':'none';
   document.getElementById('vaTermCard').style.display=vaView==='term'?'':'none';
+  const btns=document.getElementById('vaViewToggle').querySelectorAll('button');
+  btns.forEach(b=>{b.classList.toggle('active',b.textContent.toLowerCase().startsWith(vaView==='term'?'term':'skew'));});
 }
 
 function vaDrawSkew(){
