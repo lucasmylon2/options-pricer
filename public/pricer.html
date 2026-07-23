@@ -456,7 +456,7 @@ input[type=range]:hover::-webkit-slider-thumb{background:var(--blue);}
     <div class="p-section">
       <div class="p-heading">UNDERLIER</div>
       <div class="slider-group">
-        <div class="slider-meta"><span class="slider-name">Spot price <em>(S)</em> <span id="spotTrackBadge" class="hidden" style="font-family:var(--mono);font-size:8px;font-weight:700;letter-spacing:0.06em;padding:1px 5px;border-radius:2px;cursor:pointer;vertical-align:middle;" onclick="toggleSpotTracking()"></span></span><span class="slider-value" id="lbl-S">$100</span></div>
+        <div class="slider-meta"><span class="slider-name">Spot price <em>(S)</em> <span id="spotTrackBadge" class="hidden" style="font-family:var(--mono);font-size:8px;font-weight:700;letter-spacing:0.06em;padding:1px 5px;border-radius:2px;cursor:pointer;vertical-align:middle;" onclick="toggleSpotTracking()"></span></span><span class="slider-value" id="lbl-S" onclick="editSpotInline(this)" style="cursor:pointer;" title="Click to edit">$100</span></div>
         <input type="range" id="sl-S" min="1" max="500" step="1" value="100">
       </div>
       <div class="p-heading p-heading-collapse" onclick="toggleSection('rangeBody',this)" style="font-size:8px;margin-top:4px;">RANGE &amp; PRESETS</div>
@@ -857,6 +857,29 @@ const LEG_COLORS=['#2563EB','#DC2626','#059669','#D97706','#7C3AED','#0891B2','#
 function getS(){return parseFloat(document.getElementById('sl-S').value);}
 function getR(){return appMode==='single'?parseFloat(document.getElementById('sl-r').value)/100:parseFloat(document.getElementById('sl-rm').value)/100;}
 function getQ(){return appMode==='single'?parseFloat(document.getElementById('sl-q').value)/100:parseFloat(document.getElementById('sl-qm').value)/100;}
+
+function editSpotInline(el){
+  const cur=getS();
+  const inp=document.createElement('input');
+  inp.type='number';inp.value=cur;inp.step='any';
+  inp.style.cssText='width:70px;font-family:var(--mono);font-size:13px;font-weight:600;text-align:right;border:1px solid var(--blue);border-radius:3px;padding:1px 4px;background:var(--bg2);color:var(--text-primary);outline:none;';
+  el.textContent='';el.appendChild(inp);
+  inp.focus();inp.select();
+  function commit(){
+    const v=parseFloat(inp.value);
+    if(isFinite(v)&&v>0){
+      const sl=document.getElementById('sl-S');
+      const mn=parseFloat(sl.min),mx=parseFloat(sl.max);
+      if(v<mn){document.getElementById('sl-S-min').value=Math.floor(v);updateSpotRange();}
+      if(v>mx){document.getElementById('sl-S-max').value=Math.ceil(v);updateSpotRange();}
+      sl.value=v;update();
+    }
+    el.onclick=function(){editSpotInline(el);};
+  }
+  inp.addEventListener('blur',commit);
+  inp.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();inp.blur();}if(e.key==='Escape'){inp.blur();}});
+  el.onclick=null;
+}
 
 /* ── Spot slider customization ──────────── */
 function updateSpotRange(){
@@ -1456,7 +1479,7 @@ function drawMainChart(S,r,q,singleRes,singlePremium){
           else{exitVal=bs(sp,K,remDays/365,r,q,IV/100,leg.type).price;}
           return+(sign*qty*(exitVal-entry)).toFixed(4);
         });
-        datasets.push({label:`L${idx+1}`,data:legData,borderColor:legColor(idx),borderWidth:1,borderDash:[4,3],tension:0.1,pointRadius:0,fill:false});
+        datasets.push({label:`L${idx+1}`,data:legData,borderColor:legColor(idx),borderWidth:1,borderDash:[4,3],tension:0.1,pointRadius:0,fill:false,hidden:true});
       });
     } else if(chartMode==='pdf'){
       isDollar=false;
@@ -1511,8 +1534,9 @@ function drawMainChart(S,r,q,singleRes,singlePremium){
   }
   // Apply Y range: user override > home range > Chart.js auto
   const effectiveY=mainChartYOverride||mainChartHomeY;
-  if(mainChart){mainChart.data.labels=labels;mainChart.data.datasets=datasets;const sc=baseScales(xCb,yCb);if(effectiveY){sc.y.min=effectiveY.min;sc.y.max=effectiveY.max;}if(mainChartXOverride){sc.x.min=mainChartXOverride.min;sc.x.max=mainChartXOverride.max;}mainChart.options.scales=sc;mainChart.options.plugins.tooltip=tooltipCfg(isDollar);mainChart.options.plugins.currentPriceLine=plOpts.currentPriceLine;mainChart.update('none');}
-  else{const ctx=document.getElementById('mainChart').getContext('2d');const sc=baseScales(xCb,yCb);if(effectiveY){sc.y.min=effectiveY.min;sc.y.max=effectiveY.max;}mainChart=new Chart(ctx,{type:'line',data:{labels,datasets},options:{responsive:true,maintainAspectRatio:false,resizeDelay:100,animation:NO_ANIM,transitions:{resize:{animation:RESIZE_ANIM}},interaction:{mode:'index',intersect:false},plugins:{legend:{display:false},tooltip:tooltipCfg(isDollar),...plOpts},scales:sc}});}
+  const showLegend=datasets.length>1&&datasets.some(d=>d.hidden);
+  if(mainChart){mainChart.data.labels=labels;mainChart.data.datasets=datasets;const sc=baseScales(xCb,yCb);if(effectiveY){sc.y.min=effectiveY.min;sc.y.max=effectiveY.max;}if(mainChartXOverride){sc.x.min=mainChartXOverride.min;sc.x.max=mainChartXOverride.max;}mainChart.options.scales=sc;mainChart.options.plugins.tooltip=tooltipCfg(isDollar);mainChart.options.plugins.currentPriceLine=plOpts.currentPriceLine;mainChart.options.plugins.legend.display=showLegend;mainChart.update('none');}
+  else{const ctx=document.getElementById('mainChart').getContext('2d');const sc=baseScales(xCb,yCb);if(effectiveY){sc.y.min=effectiveY.min;sc.y.max=effectiveY.max;}mainChart=new Chart(ctx,{type:'line',data:{labels,datasets},options:{responsive:true,maintainAspectRatio:false,resizeDelay:100,animation:NO_ANIM,transitions:{resize:{animation:RESIZE_ANIM}},interaction:{mode:'index',intersect:false},plugins:{legend:{display:showLegend,labels:{font:{size:10,family:'JetBrains Mono'},color:'#8B95A5',boxWidth:12,padding:8}},tooltip:tooltipCfg(isDollar),...plOpts},scales:sc}});}
 
   // footer
   buildFooter(S,r,q,singlePremium);
